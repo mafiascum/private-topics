@@ -1,0 +1,15 @@
+services:
+    mafiascum.privateTopics.listener:
+        class: mafiascum\privateTopics\event\main_listener
+        arguments:
+            - '@controller.helper'
+            - '@template'
+            - '@request'
+            - '@dbal.conn'
+        tags:
+            - { name: event.listener }
+    mafiascum.privateTopics.verifyUsernameController:
+        class: mafiascum\privateTopics\controller\verifyUsername
+        arguments:
+            - '@request'
+            - '@user_loader'
