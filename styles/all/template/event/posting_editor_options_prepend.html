@@ -1,11 +1,37 @@
+{% if S_NEW_MESSAGE %}
 <hr class="dashed">
+
 <div>{{ lang('USERS_VIEW_PT') }} </div>
+<div><ul id="pt_user_list">
+    {% for user in PT_USERS %}
+    <li>
+      <input type="button" class="button2" value="x" onclick="splice_user('pt_user_list', '{{ user.USER_ID }}')">
+      <input type="hidden" name="pt_users[]" value="{{ user.USER_ID }}">
+      <a href="{{ user.PROFILE }}">{{ user.USERNAME }}</a>
+    </li>
+    {% endfor %}
+</ul></div>
 <div>
-  <input id="pt_users" type="text"> <input class="button2" value="{{ lang('ADD_USER') }}">
+  <input id="pt_user" type="text"> <input type="button" class="button2" value="{{ lang('ADD_USER') }}" onclick="verify_username('pt_user', 'pt_user_list', 'pt_users')">
 </div>
+
 <hr class="dashed">
+
 <div>{{ lang('USERS_MOD_PT') }} </div>
+<div><ul id="pt_mod_list">
+    {% for user in PT_MODS %}
+    <li>
+      <input type="button" class="button2" value="x" onclick="splice_user('pt_mod_list', '{{ user.USER_ID }}')">
+      <input type="hidden" name="pt_mods[]" value="{{ user.USER_ID }}">
+      <a href="{{ user.PROFILE }}">{{ user.USERNAME }}</a>
+    </li>
+    {% endfor %}
+</ul></div>
 <div>
-  <input id="pt_mods" type="text"> <input class="button2" value="{{ lang('ADD_MODERATOR') }}">
+  <input id="pt_mod" type="text"> <input type="button" class="button2" value="{{ lang('ADD_MODERATOR') }}" onclick="verify_username('pt_mod', 'pt_mod_list', 'pt_mods')">
 </div>
+
 <hr class="dashed">
+
+{% INCLUDEJS '/ext/mafiascum/privateTopics/styles/all/template/add_to_pt.js' %}
+{% endif %}

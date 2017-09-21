@@ -1,7 +1,5 @@
 <?php
 
-use \Symfony\Component\HttpFoundation\JsonResponse;
-
 namespace mafiascum\privateTopics\controller;
 
 class verifyUsername
