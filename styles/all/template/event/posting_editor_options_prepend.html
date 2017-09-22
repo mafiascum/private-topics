@@ -1,4 +1,13 @@
 {% if S_NEW_MESSAGE %}
+
+<label>{{ lang('CHANGE_PRIVACY') }}</label>
+<label for="topic_privacy_public">
+  <input type="radio" name="topic_privacy" id="topic_privacy_public" value="0" {% if !IS_PRIVATE %} checked {% endif %}>{{ lang('PUBLIC') }}
+</label>
+<label for="topic_privacy_private">
+  <input type="radio" name="topic_privacy" id="topic_privacy_private" value="1" {% if IS_PRIVATE %} checked {% endif %}>{{ lang('PRIVATE') }}
+</label>
+
 <hr class="dashed">
 
 <div>{{ lang('USERS_VIEW_PT') }} </div>

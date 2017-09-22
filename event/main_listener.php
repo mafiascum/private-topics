@@ -112,6 +112,10 @@ class main_listener implements EventSubscriberInterface
                 $new_mods = array();  //this request->variable method requires you to type the elements of your default arg, or it will not behave like you want
             }
             $this->update_private_entities($topic_id, $new_mods, 'phpbb_topic_mod');
+
+            $is_private = $this->request->variable('topic_privacy', 0);
+            $sql = 'UPDATE phpbb_topics SET is_private = ' . $is_private . ' WHERE topic_id = ' . $topic_id;
+            $this->db->sql_query($sql);
         }
     }
 
@@ -158,6 +162,15 @@ class main_listener implements EventSubscriberInterface
                     'PROFILE'       => $username_profile,
                 ));
             }
+            $this->db->sql_freeresult($result);
+
+            $sql = 'SELECT is_private
+                    FROM phpbb_topics
+                    WHERE topic_id = ' . $topic_id;
+            $result = $this->db->sql_query($sql);
+            $row = $this->db->sql_fetchrow($result);
+
+            $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1');
             $this->db->sql_freeresult($result);
         }
     }

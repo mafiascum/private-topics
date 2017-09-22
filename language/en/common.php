@@ -18,8 +18,11 @@ if (empty($lang) || !is_array($lang))
 }
 
 $lang = array_merge($lang, array(
-	'USERS_VIEW_PT' => 'Users that can view this topic:',
-    'ADD_USER'      => 'Add User',
-    'USERS_MOD_PT'  => 'Users that can <em>moderate</em> this topic:',
-    'ADD_MODERATOR' => 'Add Moderator',
+	'USERS_VIEW_PT'  => 'Users that can view this topic:',
+    'ADD_USER'       => 'Add User',
+    'USERS_MOD_PT'   => 'Users that can <em>moderate</em> this topic:',
+    'ADD_MODERATOR'  => 'Add Moderator',
+    'CHANGE_PRIVACY' => 'Change topic privacy to:',
+    'PRIVATE'        => 'Private',
+    'PUBLIC'         => 'Public',
 ));
