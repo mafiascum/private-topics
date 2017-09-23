@@ -8,7 +8,7 @@ function verify_username(inputElemId, outputElemId, formElemName) {
             if (data.length) {
                 const user = data[0];
                 const userAlreadyExists = outputElem.find(`input[value='${user.user_id}']`);
-                if (!userAlreadyExists) {
+                if (!userAlreadyExists.length) {
                     outputElem.append([
                         `<li>`,
                         `<input type="button" class="button2" value="x" onclick="splice_user('${outputElemId}', '${user.user_id}')">`,
