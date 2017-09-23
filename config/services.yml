@@ -6,7 +6,9 @@ services:
             - '@template'
             - '@request'
             - '@dbal.conn'
+            - '@user'
             - '@user_loader'
+            - '%core.table_prefix%'
         tags:
             - { name: event.listener }
     mafiascum.privateTopics.verifyUsernameController:
