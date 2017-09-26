@@ -37,23 +37,27 @@ class main_listener implements EventSubscriberInterface
     /* @var \phpbb\user_loader */
     protected $user_loader;
 
+    /* phpbb\language\language */
+    protected $language;
+
     static public function getSubscribedEvents()
     {
         return array(
-            'core.user_setup'                    => 'load_language_on_setup',
-            'core.submit_post_end'               => 'update_private_users_and_mods',
-            'core.posting_modify_template_vars'  => 'inject_posting_template_vars',
-            'core.modify_posting_auth'           => 'require_authorized_for_private_topic',
-            'core.viewtopic_before_f_read_check' => 'require_authorized_for_private_topic',
-            'core.display_forums_modify_sql'     => 'get_accurate_last_posts',
-            'core.display_forums_modify_row' => 'replace_accurate_last_posts',
-            'core.viewforum_modify_topics_data'  => 'filter_unauthorized_chosen_private_topics',
+            'core.display_forums_modify_row'               => 'replace_accurate_last_posts',
+            'core.display_forums_modify_sql'               => 'get_accurate_last_posts',
+            'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
+            'core.posting_modify_template_vars'            => 'inject_posting_template_vars',
+            'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
             'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
-            'core.search_mysql_author_query_before' => 'filter_unauthorized_author_search_private_topics',
+            'core.submit_post_end'                         => 'update_private_users_and_mods',
+            'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
+            'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
+            'core.viewtopic_before_f_read_check'           => 'require_authorized_for_private_topic',
+            'core.user_setup'                              => 'load_language_on_setup',
         );
     }
 
-    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, $table_prefix)
+    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, $table_prefix)
     {
         $this->helper = $helper;
         $this->template = $template;
@@ -61,6 +65,7 @@ class main_listener implements EventSubscriberInterface
         $this->db = $db;
         $this->user = $user;
         $this->user_loader = $user_loader;
+        $this->language = $language;
         $this->table_prefix = $table_prefix;
     }
 
@@ -105,14 +110,14 @@ class main_listener implements EventSubscriberInterface
 
     private function get_authorized_topics_in_list($user_id, $topic_list)
     {
-        $sql = 'SELECT t.topic_id FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
+        $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
                 WHERE ' . $this->db->sql_in_set('t.topic_id', $topic_list) . '
                 AND ' . $this->pt_where_clause();
 
         $topics = array();
         $result = $this->db->sql_query($sql);
         while ($row = $this->db->sql_fetchrow($result)) {
-            $topics[] = $row['topic_id'];
+            $topics[$row['topic_id']] = $row['is_private'];
         }
         $this->db->sql_freeresult($result);
         return $topics;
@@ -284,14 +289,20 @@ class main_listener implements EventSubscriberInterface
         );
         $ordered_authorized_topics = array();
 
+        $rowset = $event['rowset'];
         foreach ($event['topic_list'] as $topic_id) {
-            if (in_array($topic_id, $authorized_topics)) {
+            if (array_key_exists($topic_id, $authorized_topics)) {
                 $ordered_authorized_topics[] = $topic_id;
+
+                if ($authorized_topics[$topic_id] == '1') {
+                    $rowset[$topic_id]['topic_title'] = $this->language->lang('PRIVATE_TOPIC_LABEL') . $rowset[$topic_id]['topic_title'];
+                }
             }
         }
 
         $event['topic_list'] = $ordered_authorized_topics;
         $event['total_topic_count'] = count($event['topic_list']);
+        $event['rowset'] = $rowset;
     }
 
     public function filter_unauthorized_keyword_search_private_topics($event) {
@@ -310,5 +321,15 @@ class main_listener implements EventSubscriberInterface
             SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . $this->pt_join_clause($user_id, 't1') . '
             WHERE ' . $this->pt_where_clause('t1') . '
         )';
+    }
+
+    public function add_private_label_to_current_topic($event) {
+        $topic_data = $event['topic_data'];
+
+        if ($topic_data['is_private'] == '1') {
+            $topic_data['topic_title'] = $this->language->lang('PRIVATE_TOPIC_LABEL') . $topic_data['topic_title'];
+        }
+
+        $event['topic_data'] = $topic_data;
     }
 }
