@@ -26,4 +26,6 @@ $lang = array_merge($lang, array(
     'PRIVATE'             => 'Private',
     'PUBLIC'              => 'Public',
     'PRIVATE_TOPIC_LABEL' => 'PRIVATE TOPIC: ',
+    'TOPIC_MODERATORS'    => 'Topic Moderators',
+    'REMOVE_SELECTED'     => 'Remove Selected',
 ));

@@ -1,0 +1,32 @@
+<form method="post" id="mcp_chgposter" action="{{ U_POST_ACTION }}">
+  <fieldset>
+    <dl>
+      <dt><label>{{ lang('ADD_MODERATOR') }}</label></dt>
+      <dd style="margin-top:3px;">
+	<input class="inputbox autowidth" type="text" name="username" value="" />
+        <input type="submit" class="button2" name="action[add_topic_mod]" value="{{ lang('CONFIRM') }}" />
+	<br />
+	<span>[ <a href="{{ U_FIND_USERNAME }}" onclick="find_username(this.href); return false;">{{ lang('FIND_USERNAME') }}</a> ]</span>
+      </dd>
+    </dl>
+    {{ S_FORM_TOKEN }}
+  </fieldset>
+  
+  <table class="table1" cellspacing="1">
+    <thead>
+      <tr>
+	<th class="name">{{ lang('TOPIC_MODERATORS') }}</th>
+	<th class="posts">{{ lang('REMOVE') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in PT_MODS %}
+      <tr class="bg1">
+	<td><a href="{user.PROFILE}">{user.USERNAME}</a></td>
+	<td class="posts"><input type="checkbox" name="topic_mods_to_remove[]" value="{user.USER_ID}"/></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <input type="submit" class="button2" name="action[remove_topic_mod]" value="{{ lang('REMOVE_SELECTED') }}" />
+</form>

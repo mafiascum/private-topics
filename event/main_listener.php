@@ -45,15 +45,17 @@ class main_listener implements EventSubscriberInterface
         return array(
             'core.display_forums_modify_row'               => 'replace_accurate_last_posts',
             'core.display_forums_modify_sql'               => 'get_accurate_last_posts',
+            'core.mcp_post_additional_options'             => 'handle_mcp_additional_options',
+            'core.mcp_post_template_data'                  => 'inject_posting_template_vars_mcp',
             'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
-            'core.posting_modify_template_vars'            => 'inject_posting_template_vars',
+            'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
             'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
             'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
             'core.submit_post_end'                         => 'update_private_users_and_mods',
+            'core.user_setup'                              => 'load_language_on_setup',
             'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
             'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
             'core.viewtopic_before_f_read_check'           => 'require_authorized_for_private_topic',
-            'core.user_setup'                              => 'load_language_on_setup',
         );
     }
 
@@ -143,8 +145,8 @@ class main_listener implements EventSubscriberInterface
         }
         if (sizeof($private_users_add)) {
             foreach ($private_users_add as $user_id) {
-                    $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
-                    $this->db->sql_query($sql);
+                $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
+                $this->db->sql_query($sql);
             }
         }
     }
@@ -172,60 +174,66 @@ class main_listener implements EventSubscriberInterface
         }
     }
 
-    public function inject_posting_template_vars($event)
+    private function inject_posting_template_vars($topic_id)
     {
-        if ($this->will_configure_private_topics($event)) {
-            $topic_id = $event['topic_id'];
-            
-            $sql = 'SELECT user_id
+        $sql = 'SELECT user_id
                 FROM ' . $this->table_prefix . 'private_topic_users
                 WHERE topic_id = ' . $topic_id;
+
+        $result = $this->db->sql_query($sql);
+        while ($row = $this->db->sql_fetchrow($result))
+        {
+            $user_id = $row['user_id'];
+            $this->user_loader->load_users(array($user_id));
+            $username_formatted = $this->user_loader->get_username($user_id, 'username');
+            $username_profile = $this->user_loader->get_username($user_id, 'profile');
             
-            $result = $this->db->sql_query($sql);
-            while ($row = $this->db->sql_fetchrow($result))
-            {
-                $user_id = $row['user_id'];
-                $this->user_loader->load_users(array($user_id));
-                $username_formatted = $this->user_loader->get_username($user_id, 'username');
-                $username_profile = $this->user_loader->get_username($user_id, 'profile');
-                
-                $this->template->assign_block_vars('PT_USERS', array(
-                    'USER_ID'       => $user_id,
-                    'USERNAME'      => $username_formatted,
-                    'PROFILE'       => $username_profile,
-                ));
-            }
-            $this->db->sql_freeresult($result);
-            
-            $sql = 'SELECT user_id
+            $this->template->assign_block_vars('PT_USERS', array(
+                'USER_ID'       => $user_id,
+                'USERNAME'      => $username_formatted,
+                'PROFILE'       => $username_profile,
+            ));
+        }
+        $this->db->sql_freeresult($result);
+        
+        $sql = 'SELECT user_id
                 FROM ' . $this->table_prefix . 'topic_mod
                 WHERE topic_id = ' . $topic_id;
+        
+        $result = $this->db->sql_query($sql);
+        while ($row = $this->db->sql_fetchrow($result))
+        {
+            $user_id = $row['user_id'];
+            $this->user_loader->load_users(array($user_id));
+            $username_formatted = $this->user_loader->get_username($user_id, 'username');
+            $username_profile = $this->user_loader->get_username($user_id, 'profile');
             
-            $result = $this->db->sql_query($sql);
-            while ($row = $this->db->sql_fetchrow($result))
-            {
-                $user_id = $row['user_id'];
-                $this->user_loader->load_users(array($user_id));
-                $username_formatted = $this->user_loader->get_username($user_id, 'username');
-                $username_profile = $this->user_loader->get_username($user_id, 'profile');
-                
-                $this->template->assign_block_vars('PT_MODS', array(
-                    'USER_ID'       => $user_id,
-                    'USERNAME'      => $username_formatted,
-                    'PROFILE'       => $username_profile,
-                ));
-            }
-            $this->db->sql_freeresult($result);
-
-            $sql = 'SELECT is_private
+            $this->template->assign_block_vars('PT_MODS', array(
+                'USER_ID'       => $user_id,
+                'USERNAME'      => $username_formatted,
+                'PROFILE'       => $username_profile,
+            ));
+        }
+        $this->db->sql_freeresult($result);
+        
+        $sql = 'SELECT is_private
                     FROM ' . $this->table_prefix . 'topics
                     WHERE topic_id = ' . $topic_id;
-            $result = $this->db->sql_query($sql);
-            $row = $this->db->sql_fetchrow($result);
+        $result = $this->db->sql_query($sql);
+        $row = $this->db->sql_fetchrow($result);
+        
+        $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1');
+        $this->db->sql_freeresult($result);
+    }
 
-            $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1');
-            $this->db->sql_freeresult($result);
+    public function inject_posting_template_vars_post($event) {
+        if ($this->will_configure_private_topics($event)) {
+            $this->inject_posting_template_vars($event['topic_id']);
         }
+    }
+
+    public function inject_posting_template_vars_mcp($event) {
+        $this->inject_posting_template_vars($event['post_info']['topic_id']);
     }
 
     public function require_authorized_for_private_topic($event) {
@@ -284,8 +292,8 @@ class main_listener implements EventSubscriberInterface
 
     public function filter_unauthorized_chosen_private_topics($event) {
         $authorized_topics = $this->get_authorized_topics_in_list(
-             $this->user->data['user_id'],
-             $event['topic_list']
+            $this->user->data['user_id'],
+            $event['topic_list']
         );
         $ordered_authorized_topics = array();
 
@@ -331,5 +339,37 @@ class main_listener implements EventSubscriberInterface
         }
 
         $event['topic_data'] = $topic_data;
+    }
+
+    public function handle_mcp_additional_options($event) {
+        $action = $event['action'];
+        $topic_id = $event['post_info']['topic_id'];
+
+        switch ($action) {
+        case 'add_topic_mod':
+            $username = $this->request->variable('username', '');
+
+            $user_id = $this->user_loader->load_user_by_username($username);
+            if ($user_id == ANONYMOUS) {
+                trigger_error('NO_USER');
+            }
+            $sql = 'SELECT count(*) cnt FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE user_id = ' . $user_id . ' AND topic_id = ' . $topic_id;
+            $result = $this->db->sql_query($sql);
+            $row = $this->db->sql_fetchrow($result);
+            $is_mod = $row['cnt'] > 0;
+
+            if (!$is_mod) {
+                $sql = 'INSERT INTO ' . $this->table_prefix . 'topic_mod' . ' (user_id, topic_id) VALUES ('. $user_id .','. $topic_id .');';
+                $this->db->sql_query($sql);
+            }
+            break;
+        case 'remove_topic_mod':
+            $topic_mods_to_remove = $this->request->variable('topic_mods_to_remove', array(0));
+            if (!empty($topic_mods_to_remove)) {
+                $sql = 'DELETE FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE topic_id=' . $topic_id . ' AND user_id IN (' . implode(',', $topic_mods_to_remove) . ');';
+                $this->db->sql_query($sql);
+            }
+            break;
+        }
     }
 }
