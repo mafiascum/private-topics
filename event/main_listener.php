@@ -37,6 +37,9 @@ class main_listener implements EventSubscriberInterface
     /* @var \phpbb\user_loader */
     protected $user_loader;
 
+    /* @var \phpbb\auth\auth */
+    protected $auth;
+
     /* phpbb\language\language */
     protected $language;
 
@@ -48,6 +51,7 @@ class main_listener implements EventSubscriberInterface
             'core.mcp_post_additional_options'             => 'handle_mcp_additional_options',
             'core.mcp_post_template_data'                  => 'inject_posting_template_vars_mcp',
             'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
+            'core.posting_modify_cannot_edit_conditions'   => 'override_edit_checks',
             'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
             'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
             'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
@@ -56,10 +60,12 @@ class main_listener implements EventSubscriberInterface
             'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
             'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
             'core.viewtopic_before_f_read_check'           => 'require_authorized_for_private_topic',
+            'core.viewtopic_modify_post_action_conditions' => 'override_edit_checks',
+            'core.viewtopic_modify_post_data'              => 'add_viewtopic_template_data',
         );
     }
 
-    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, $table_prefix)
+    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, \phpbb\auth\auth $auth, $table_prefix)
     {
         $this->helper = $helper;
         $this->template = $template;
@@ -68,6 +74,7 @@ class main_listener implements EventSubscriberInterface
         $this->user = $user;
         $this->user_loader = $user_loader;
         $this->language = $language;
+        $this->auth = $auth;
         $this->table_prefix = $table_prefix;
     }
 
@@ -79,6 +86,35 @@ class main_listener implements EventSubscriberInterface
             'lang_set' => 'common',
         );
         $event['lang_set_ext'] = $lang_set_ext;
+    }
+
+    private function is_topic_moderator($user_id, $topic_id) {
+        $sql = 'SELECT count(*) cnt FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE user_id = ' . $user_id . ' AND topic_id = ' . $topic_id;
+        $result = $this->db->sql_query($sql);
+        $row = $this->db->sql_fetchrow($result);
+        return $row['cnt'] > 0;
+    }
+
+    // quick mod tools
+    // utterly lifted from old code base.
+    private function get_quick_mod_html($topic_id, $topic_data, $forum_id) {
+        $isTopicModerator = $this->is_topic_moderator($this->user->data['user_id'], $topic_id);
+        $allow_change_type = ($this->auth->acl_get('m_', $forum_id) || ($this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'])) ? true : false;
+        $topic_mod = '';
+        $topic_mod .= ($this->auth->acl_get('m_lock', $forum_id) || $isTopicModerator || ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'] /* && $topic_data['topic_status'] == ITEM_UNLOCKED */)) ? (($topic_data['topic_status'] == ITEM_UNLOCKED) ? '<option value="lock">' . $this->user->lang['LOCK_TOPIC'] . '</option>' : '<option value="unlock">' . $this->user->lang['UNLOCK_TOPIC'] . '</option>') : '';
+        $topic_mod .= ($this->auth->acl_get('m_delete', $forum_id)) ? '<option value="delete_topic">' . $this->user->lang['DELETE_TOPIC'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_move', $forum_id) && $topic_data['topic_status'] != ITEM_MOVED) ? '<option value="move">' . $this->user->lang['MOVE_TOPIC'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_split', $forum_id)) ? '<option value="split">' . $this->user->lang['SPLIT_TOPIC'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_merge', $forum_id)) ? '<option value="merge">' . $this->user->lang['MERGE_POSTS'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_merge', $forum_id)) ? '<option value="merge_topic">' . $this->user->lang['MERGE_TOPIC'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_move', $forum_id)) ? '<option value="fork">' . $this->user->lang['FORK_TOPIC'] . '</option>' : '';
+        $topic_mod .= ($allow_change_type && $this->auth->acl_gets('f_sticky', 'f_announce', $forum_id) && $topic_data['topic_type'] != POST_NORMAL) ? '<option value="make_normal">' . $this->user->lang['MAKE_NORMAL'] . '</option>' : '';
+        $topic_mod .= ($allow_change_type && $this->auth->acl_get('f_sticky', $forum_id) && $topic_data['topic_type'] != POST_STICKY) ? '<option value="make_sticky">' . $this->user->lang['MAKE_STICKY'] . '</option>' : '';
+        $topic_mod .= ($allow_change_type && $this->auth->acl_get('f_announce', $forum_id) && $topic_data['topic_type'] != POST_ANNOUNCE) ? '<option value="make_announce">' . $this->user->lang['MAKE_ANNOUNCE'] . '</option>' : '';
+        $topic_mod .= ($allow_change_type && $this->auth->acl_get('f_announce', $forum_id) && $topic_data['topic_type'] != POST_GLOBAL) ? '<option value="make_global">' . $this->user->lang['MAKE_GLOBAL'] . '</option>' : '';
+        $topic_mod .= ($this->auth->acl_get('m_', $forum_id)) ? '<option value="topic_logs">' . $this->user->lang['VIEW_TOPIC_LOGS'] . '</option>' : '';
+
+        return ($topic_mod != '') ? '<select name="action" id="quick-mod-select">' . $topic_mod . '</select>' : '';
     }
 
     private function will_configure_private_topics($event) {
@@ -237,19 +273,22 @@ class main_listener implements EventSubscriberInterface
     }
 
     public function require_authorized_for_private_topic($event) {
-        $is_pt_authed = $this->is_user_authorized_for_topic(
-            $this->user->data['user_id'],
-            $event['topic_id']
-        );
-
-        // check to see if caller has an auth variable to merge with
-        // otherwise, we have to potentially throw our own error
-        if (isset($event['is_authed'])) {
-            $event['is_authed'] = $event['is_authed'] && $is_pt_authed;
-        }
-        else {
-            if (!$is_pt_authed) {
-                trigger_error('SORRY_AUTH_READ');
+        // new topics don't have any need to check this.
+        if ($event['topic_id']) {
+            $is_pt_authed = $this->is_user_authorized_for_topic(
+                $this->user->data['user_id'],
+                $event['topic_id']
+            );
+            
+            // check to see if caller has an auth variable to merge with
+            // otherwise, we have to potentially throw our own error
+            if (isset($event['is_authed'])) {
+                $event['is_authed'] = $event['is_authed'] && $is_pt_authed;
+            }
+            else {
+                if (!$is_pt_authed) {
+                    trigger_error('SORRY_AUTH_READ');
+                }
             }
         }
     }
@@ -353,10 +392,7 @@ class main_listener implements EventSubscriberInterface
             if ($user_id == ANONYMOUS) {
                 trigger_error('NO_USER');
             }
-            $sql = 'SELECT count(*) cnt FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE user_id = ' . $user_id . ' AND topic_id = ' . $topic_id;
-            $result = $this->db->sql_query($sql);
-            $row = $this->db->sql_fetchrow($result);
-            $is_mod = $row['cnt'] > 0;
+            $is_mod = $this->is_topic_moderator($user_id, $topic_id);
 
             if (!$is_mod) {
                 $sql = 'INSERT INTO ' . $this->table_prefix . 'topic_mod' . ' (user_id, topic_id) VALUES ('. $user_id .','. $topic_id .');';
@@ -371,5 +407,19 @@ class main_listener implements EventSubscriberInterface
             }
             break;
         }
+    }
+
+    public function override_edit_checks($event) {
+        $user_id = $this->user->data['user_id'];
+        $topic_id = $event['topic_data']['topic_id'] ?: $event['post_data']['topic_id'];
+        $is_topic_mod = $this->is_topic_moderator($user_id, $topic_id);
+        
+        $event['force_edit_allowed'] = $event['force_edit_allowed'] || $is_topic_mod;
+    }
+
+    public function add_viewtopic_template_data($event) {
+        $quick_mod_html = $this->get_quick_mod_html($event['topic_id'], $event['topic_data'], $event['forum_id']);
+
+        $this->template->assign_var('S_TOPIC_MOD', $quick_mod_html);
     }
 }

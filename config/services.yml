@@ -9,6 +9,7 @@ services:
             - '@user'
             - '@user_loader'
             - '@language'
+            - '@auth'
             - '%core.table_prefix%'
         tags:
             - { name: event.listener }

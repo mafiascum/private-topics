@@ -1,0 +1,10 @@
+{% if S_TOPIC_MOD %}
+<div><form method="post" action="{{ S_MOD_ACTION }}">
+  <fieldset class="quickmod">
+    <label for="quick-mod-select">{{ lang('QUICK_MOD') }}:</label> {{ S_TOPIC_MOD }} <input type="submit" value="{{ lang('go') }}" class="button2" />
+    {{ S_FORM_TOKEN }} 
+  </fieldset>
+</form></div>
+{% endif %}
+
+{% INCLUDECSS '/ext/mafiascum/privateTopics/styles/all/theme/css/quickmod.css' %}
