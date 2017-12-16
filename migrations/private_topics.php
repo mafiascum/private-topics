@@ -34,6 +34,11 @@ class private_topics extends \phpbb\db\migration\migration
                     'PRIMARY_KEY' => array('topic_id', 'user_id'),
                 ),
             ),
+            'add_columns' => array(
+                $this->table_prefix . 'topics' => array(
+                    'is_private' => array('UINT:4', 0),
+                ),
+            ),
         );
     }
 
@@ -43,6 +48,11 @@ class private_topics extends \phpbb\db\migration\migration
             'drop_tables'    => array(
                 $this->table_prefix . 'topic_mod',
                 $this->table_prefix . 'private_topic_users',
+            ),
+            'drop_columns'   => array(
+                $this->table_prefix . 'topics' => array(
+                    'is_private',
+                ),
             ),
         );
     }
