@@ -37,6 +37,11 @@ class private_topics extends \phpbb\db\migration\migration
             'add_columns' => array(
                 $this->table_prefix . 'topics' => array(
                     'is_private' => array('UINT:4', 0),
+                    'autolock_time' => array('UINT:11', 0),
+                    'autolock_input' => array('VCHAR:32', ''),
+                ),
+                $this->table_prefix . 'forums' => array(
+                    'topic_author_moderation' => array('INT:8', 0),
                 ),
             ),
         );
@@ -52,6 +57,11 @@ class private_topics extends \phpbb\db\migration\migration
             'drop_columns'   => array(
                 $this->table_prefix . 'topics' => array(
                     'is_private',
+                    'autolock_time',
+                    'autolock_input',
+                ),
+                $this->table_prefix . 'forums' => array(
+                    'topic_author_moderation',
                 ),
             ),
         );

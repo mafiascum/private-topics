@@ -46,16 +46,22 @@ class main_listener implements EventSubscriberInterface
     static public function getSubscribedEvents()
     {
         return array(
+            'core.acp_manage_forums_display_form'          => 'inject_topic_author_moderation',
+            'core.acp_manage_forums_initialise_data'       => 'initialize_topic_author_moderation',
+            'core.acp_manage_forums_request_data'          => 'submit_topic_author_moderation',
             'core.display_forums_modify_row'               => 'replace_accurate_last_posts',
             'core.display_forums_modify_sql'               => 'get_accurate_last_posts',
             'core.mcp_post_additional_options'             => 'handle_mcp_additional_options',
             'core.mcp_post_template_data'                  => 'inject_posting_template_vars_mcp',
             'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
             'core.posting_modify_cannot_edit_conditions'   => 'override_edit_checks',
+            'core.posting_modify_post_data'                => 'init_post_data',
+            'core.posting_modify_submit_post_before'       => 'handle_autolock',
             'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
             'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
             'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
             'core.submit_post_end'                         => 'update_private_users_and_mods',
+            'core.submit_post_modify_sql_data'             => 'add_autolock_fields',
             'core.user_setup'                              => 'load_language_on_setup',
             'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
             'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
@@ -88,7 +94,11 @@ class main_listener implements EventSubscriberInterface
         $event['lang_set_ext'] = $lang_set_ext;
     }
 
-    private function is_topic_moderator($user_id, $topic_id) {
+    private function is_topic_moderator($user_id, $topic_id, $topic_author_moderation) {
+        if (!$topic_author_moderation) {
+            return false;
+        }
+
         $sql = 'SELECT count(*) cnt FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE user_id = ' . $user_id . ' AND topic_id = ' . $topic_id;
         $result = $this->db->sql_query($sql);
         $row = $this->db->sql_fetchrow($result);
@@ -98,7 +108,7 @@ class main_listener implements EventSubscriberInterface
     // quick mod tools
     // utterly lifted from old code base.
     private function get_quick_mod_html($topic_id, $topic_data, $forum_id) {
-        $isTopicModerator = $this->is_topic_moderator($this->user->data['user_id'], $topic_id);
+        $isTopicModerator = $this->is_topic_moderator($this->user->data['user_id'], $topic_id, $topic_data['topic_author_moderation']);
         $allow_change_type = ($this->auth->acl_get('m_', $forum_id) || ($this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'])) ? true : false;
         $topic_mod = '';
         $topic_mod .= ($this->auth->acl_get('m_lock', $forum_id) || $isTopicModerator || ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'] /* && $topic_data['topic_status'] == ITEM_UNLOCKED */)) ? (($topic_data['topic_status'] == ITEM_UNLOCKED) ? '<option value="lock">' . $this->user->lang['LOCK_TOPIC'] . '</option>' : '<option value="unlock">' . $this->user->lang['UNLOCK_TOPIC'] . '</option>') : '';
@@ -262,10 +272,46 @@ class main_listener implements EventSubscriberInterface
         $this->db->sql_freeresult($result);
     }
 
+    private function inject_autolock_template_vars($event) {
+        $mode = $event['mode'];
+        $post_id = $event['post_id'];
+        $forum_id = $event['forum_id'];
+        $post_data = $event['post_data'];
+
+        $submit = $event['submit'];
+        $preview = $event['preview'];
+        $refresh = $event['refresh'];
+        
+        $topic_autolock_allowed = false;
+        
+        if ($mode == 'post' || ($mode == 'edit' && $post_id == $post_data['topic_first_post_id'])) {
+            $perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) ||
+                                 ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
+                                  !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
+                                  $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+            
+            $topic_autolock_allowed = $perm_lock_unlock || $this->is_topic_moderator($this->user->data['user_id'], $post_id, $post_data['topic_author_moderation']);
+        }
+
+        if ($submit || $preview || $refresh) {
+            $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
+        }
+
+        $this->template->assign_vars(array(
+            'S_AUTOLOCK_ALLOWED' => $topic_autolock_allowed,
+            'S_AUTOLOCK_SET'     => (($autolock_arr == null ? $post_data['autolock_time'] : $autolock_arr['unix_timestamp']) != 0),
+            'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? $post_data['autolock_input'] : $autolock_arr['input'],
+            'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? $post_data['autolock_time'] : $autolock_arr['unix_timestamp']),
+            'USER_TIMEZONE_OFFSET'	=> array_key_exists('autolock_timezone_offset', $post_data) ? $post_data['autolock_timezone_offset'] : number_format($this->user->create_datetime()->getOffset() / 60 / 60, 2),
+        ));
+    }
+
     public function inject_posting_template_vars_post($event) {
         if ($this->will_configure_private_topics($event)) {
             $this->inject_posting_template_vars($event['topic_id']);
         }
+
+        $this->inject_autolock_template_vars($event);
     }
 
     public function inject_posting_template_vars_mcp($event) {
@@ -392,7 +438,7 @@ class main_listener implements EventSubscriberInterface
             if ($user_id == ANONYMOUS) {
                 trigger_error('NO_USER');
             }
-            $is_mod = $this->is_topic_moderator($user_id, $topic_id);
+            $is_mod = $this->is_topic_moderator($user_id, $topic_id, $event['post_info']['topic_author_moderation']);
 
             if (!$is_mod) {
                 $sql = 'INSERT INTO ' . $this->table_prefix . 'topic_mod' . ' (user_id, topic_id) VALUES ('. $user_id .','. $topic_id .');';
@@ -412,7 +458,8 @@ class main_listener implements EventSubscriberInterface
     public function override_edit_checks($event) {
         $user_id = $this->user->data['user_id'];
         $topic_id = $event['topic_data']['topic_id'] ?: $event['post_data']['topic_id'];
-        $is_topic_mod = $this->is_topic_moderator($user_id, $topic_id);
+        $topic_author_moderation = $event['topic_data']['topic_author_moderation'] ?: $event['post_data']['topic_author_moderation'];
+        $is_topic_mod = $this->is_topic_moderator($user_id, $topic_id, $topic_author_moderation);
         
         $event['force_edit_allowed'] = $event['force_edit_allowed'] || $is_topic_mod;
     }
@@ -421,5 +468,130 @@ class main_listener implements EventSubscriberInterface
         $quick_mod_html = $this->get_quick_mod_html($event['topic_id'], $event['topic_data'], $event['forum_id']);
 
         $this->template->assign_var('S_TOPIC_MOD', $quick_mod_html);
+    }
+
+    public function add_autolock_fields($event)
+    {
+        $post_mode = $event['post_mode'];
+
+        if ($post_mode == 'post' || $post_mode == 'edit_first_post' || $post_mode == 'edit_topic') {
+            $data = $event['data'];
+
+            $sql_data = $event['sql_data'];
+
+            $sql_data[TOPICS_TABLE]['sql']['autolock_time'] = $data['autolock_time'];
+            $sql_data[TOPICS_TABLE]['sql']['autolock_input'] = $data['autolock_input'];
+
+            $event['sql_data'] = $sql_data;
+        }
+    }
+
+    private static function get_autolock_arr($input_string)
+    {
+        $timezone_offset = null;
+        $autolock_time = 0;
+        
+        if(preg_match_all('/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))? ?(-?\d{1,2}\.\d{1,2})?/', $input_string, $matches, PREG_SET_ORDER)) {
+            
+            $match = $matches[0];
+            $time_autolock = gmmktime($match[4], $match[5], 0, $match[2], $match[3], $match[1]);
+            if(count($match) >= 7)
+            {
+                $timezone_offset = $match[7];
+                $time_autolock -= ((float)$match[7]) * 60 * 60;
+            }
+        }
+        
+        return array(
+            "unix_timestamp"	=> $time_autolock,
+            "timezone_offset"	=> $timezone_offset,
+            "input" 			=> $input_string
+        );
+    }
+
+    private static function get_autolock_remaining_text($autolock_time)
+    {
+        $seconds_remaining = $autolock_time - time();
+        if($seconds_remaining < 60)
+            return "under a minute";
+        $minutes = (int) ($seconds_remaining / 60) % 60;
+        $hours = (int) ($seconds_remaining / 3600) % 24;
+        $days = (int) ($seconds_remaining / 86400);
+        $buffer_arr = array();
+        if($days > 0)
+            array_push($buffer_arr, $days . " day" . ($days == 1 ? "" : "s"));
+        if($hours > 0)
+            array_push($buffer_arr, $hours . " hour" . ($hours == 1 ? "" : "s"));
+        if($minutes > 0)
+            array_push($buffer_arr, $minutes . " minute" . ($minutes == 1 ? "" : "s"));
+        return join(", ", $buffer_arr);
+    }
+    
+    public function handle_autolock($event) {
+        $post_data = $event['post_data'];
+        $data = $event['data'];
+        $post_id = $event['post_id'];
+        $forum_id = $event['forum_id'];
+        $mode = $event['mode'];
+        $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
+
+        $perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) ||
+                             ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
+                              !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
+                              $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+
+
+        if ($mode == 'post' || ($mode == 'edit' && $post_data['topic_first_post_id'] == $post_id) && $perm_lock_unlock) {
+            $post_data['autolock_time'] = $autolock_arr['unix_timestamp'];
+            $post_data['autolock_input'] = $autolock_arr['unix_timestamp'] == 0 ? "" : $autolock_arr['input'];
+        }
+
+        $data['autolock_time'] = (int) $post_data['autolock_time'];
+        $data['autolock_input'] = (string) $post_data['autolock_input'];
+
+        $event['post_data'] = $post_data;
+        $event['data'] = $data;
+    }
+
+    public function init_post_data($event) {
+        $post_data = $event['post_data'];
+
+        $post_autolock_arr = self::get_autolock_arr($post_data['autolock_input']);
+
+        $post_data['autolock_topic'] = '';
+
+        if ($post_autolock_arr !== null) {
+            $post_data['autolock_timezone_offset'] = $post_autolock_arr['timezone_offset'];
+        }
+
+        $event['post_data'] = $post_data;
+    }
+
+    public function submit_topic_author_moderation($event) {
+        $forum_data = $event['forum_data'];
+
+        $forum_data['topic_author_moderation'] = $this->request->variable('topic_author_moderation', 0);
+
+        $event['forum_data'] = $forum_data;
+    }
+
+    public function initialize_topic_author_moderation($event) {
+        $action = $event['action'];
+        $update = $event['update'];
+        $forum_data = $event['forum_data'];
+
+        if ($action == 'add' && !$update) {
+            $forum_data['topic_author_moderation'] = 0;
+        }
+        $event['forum_data'] = $forum_data;
+    }
+
+    public function inject_topic_author_moderation($event) {
+        $action = $event['action'];
+        $forum_data = $event['forum_data'];
+
+        if ($action == 'add' || $action == 'edit') {
+            $this->template->assign_var('TOPIC_AUTHOR_MODERATION', $forum_data['topic_author_moderation']);
+        }
     }
 }

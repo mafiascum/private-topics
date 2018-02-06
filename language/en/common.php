@@ -18,16 +18,21 @@ if (empty($lang) || !is_array($lang))
 }
 
 $lang = array_merge($lang, array(
-	'USERS_VIEW_PT'       => 'Users that can view this topic:',
-    'ADD_USER'            => 'Add User',
-    'USERS_MOD_PT'        => 'Users that can <em>moderate</em> this topic:',
-    'ADD_MODERATOR'       => 'Add Moderator',
-    'CHANGE_PRIVACY'      => 'Change topic privacy to:',
-    'PRIVATE'             => 'Private',
-    'PUBLIC'              => 'Public',
-    'PRIVATE_TOPIC_LABEL' => 'PRIVATE TOPIC: ',
-    'TOPIC_MODERATORS'    => 'Topic Moderators',
-    'REMOVE_SELECTED'     => 'Remove Selected',
-    'QUICK_MOD'           => 'Quick-mod tools',
-    
+	'USERS_VIEW_PT'                   => 'Users that can view this topic:',
+    'ADD_USER'                        => 'Add User',
+    'USERS_MOD_PT'                    => 'Users that can <em>moderate</em> this topic:',
+    'ADD_MODERATOR'                   => 'Add Moderator',
+    'CHANGE_PRIVACY'                  => 'Change topic privacy to:',
+    'PRIVATE'                         => 'Private',
+    'PUBLIC'                          => 'Public',
+    'PRIVATE_TOPIC_LABEL'             => 'PRIVATE TOPIC: ',
+    'TOPIC_MODERATORS'                => 'Topic Moderators',
+    'REMOVE_SELECTED'                 => 'Remove Selected',
+    'QUICK_MOD'                       => 'Quick-mod tools',
+    'AUTOLOCK_LABEL'                  => 'Auto-lock topic at',
+    'AUTOLOCK_REMAINING_LABEL'        => 'Topic will auto-lock in approximately',
+    'AUTOLOCK_PLACEHOLDER'		      => 'Ex: 2015-09-30 15:30 -5.00',
+	'AUTOLOCK_FORMAT'		          => 'Valid format is: YYYY-MM-DD HH:MM 00.00 (ex: 2015-09-30 15:30 -5.00 will lock Sep 30 2015 at 3:30PM EST(GMT-5))',
+    'TOPIC_AUTHOR_MODERATION'         => 'Enable Topic Author Moderation',
+    'TOPIC_AUTHOR_MODERATION_EXPLAIN' => 'If set to yes authors of topics in this forum will have moderator edit permission in their own topics.',
 ));

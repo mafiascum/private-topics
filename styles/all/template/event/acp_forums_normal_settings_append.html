@@ -1,0 +1,5 @@
+<dl>
+  <dt><label for="topic_author_moderation">{{ lang('TOPIC_AUTHOR_MODERATION') }}:</label><br /><span>{{ lang('TOPIC_AUTHOR_MODERATION_EXPLAIN') }}</span></dt>
+  <dd><label><input type="radio" class="radio" name="topic_author_moderation" value="1" {% if TOPIC_AUTHOR_MODERATION %} id="topic_author_moderation" checked="checked" {% endif %} /> {{ lang('YES') }}</label>
+    <label><input type="radio" class="radio" name="topic_author_moderation" value="0" {% if not TOPIC_AUTHOR_MODERATION %} id="topic_author_moderation" checked="checked" {% endif %} /> {{ lang('NO') }}</label></dd>
+</dl>
