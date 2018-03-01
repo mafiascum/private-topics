@@ -23,7 +23,6 @@ class private_topics extends \phpbb\db\migration\migration
                     'COLUMNS' => array(
                         'topic_id'             => array('UINT:10', 0),
                         'user_id'              => array('UINT:10', 0),
-                        'permission_type'      => array('UINT:4', 1),
                     ),
                     'PRIMARY_KEY' => array('topic_id', 'user_id'),
                 ),
