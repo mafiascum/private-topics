@@ -158,17 +158,21 @@ class main_listener implements EventSubscriberInterface
 
     private function get_authorized_topics_in_list($user_id, $topic_list)
     {
-        $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
+        if (empty($topic_list)) {
+            return array();
+        } else {
+            $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
                 WHERE ' . $this->db->sql_in_set('t.topic_id', $topic_list) . '
                 AND ' . $this->pt_where_clause();
 
-        $topics = array();
-        $result = $this->db->sql_query($sql);
-        while ($row = $this->db->sql_fetchrow($result)) {
-            $topics[$row['topic_id']] = $row['is_private'];
+            $topics = array();
+            $result = $this->db->sql_query($sql);
+            while ($row = $this->db->sql_fetchrow($result)) {
+                $topics[$row['topic_id']] = $row['is_private'];
+            }
+            $this->db->sql_freeresult($result);
+            return $topics;
         }
-        $this->db->sql_freeresult($result);
-        return $topics;
     }
 
     private function update_private_entities($event, $new_users, $table_name, $addl_where = '')
