@@ -171,11 +171,15 @@ class main_listener implements EventSubscriberInterface
         return $topics;
     }
 
-    private function update_private_entities($topic_id, $new_users, $table_name)
+    private function update_private_entities($event, $new_users, $table_name, $addl_where = '')
     {
+        $mode = $event['mode'];
+        $topic_id = $event['data']['topic_id'];
+        $poster_id = $event['data']['poster_id'];
+
         $old_users = array();
 
-        $sql = 'SELECT user_id FROM ' . $table_name . ' WHERE topic_id=' . $topic_id;
+        $sql = 'SELECT user_id FROM ' . $table_name . ' WHERE topic_id=' . $topic_id . $addl_where;
         $result = $this->db->sql_query($sql);
         while ($row = $this->db->sql_fetchrow($result)) {
             $old_users[] = $row['user_id'];
@@ -191,8 +195,10 @@ class main_listener implements EventSubscriberInterface
         }
         if (sizeof($private_users_add)) {
             foreach ($private_users_add as $user_id) {
-                $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
-                $this->db->sql_query($sql);
+                if ($mode == 'post' && $user_id != $this->user->data['user_id'] || $mode == 'edit' && $user_id != $poster_id) {
+                    $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
+                    $this->db->sql_query($sql);
+                }
             }
         }
     }
@@ -201,18 +207,22 @@ class main_listener implements EventSubscriberInterface
     {
         if ($this->will_configure_private_topics($event)) {
             $topic_id = $event['data']['topic_id'];
+            $poster_id = $event['data']['poster_id'];
 
             $new_users = $this->request->variable('pt_users', array(''));
             if ($new_users == array('')){
                 $new_users = array();  //this request->variable method requires you to type the elements of your default arg, or it will not behave like you want
             }
-            $this->update_private_entities($topic_id, $new_users, $this->table_prefix . 'private_topic_users');
+            $this->update_private_entities($event, $new_users, $this->table_prefix . 'private_topic_users', ' and permission_type = 1');
+
+            $sql = "INSERT IGNORE INTO phpbb_private_topic_users (topic_id, user_id, permission_type) VALUES (" . $topic_id . ',' . $poster_id . ", 2);";
+            $this->db->sql_query($sql);
         
             $new_mods = $this->request->variable('pt_mods', array(''));
             if ($new_mods == array('')){
                 $new_mods = array();  //this request->variable method requires you to type the elements of your default arg, or it will not behave like you want
             }
-            $this->update_private_entities($topic_id, $new_mods, $this->table_prefix . 'topic_mod');
+            $this->update_private_entities($event, $new_mods, $this->table_prefix . 'topic_mod');
 
             $is_private = $this->request->variable('topic_privacy', 0);
             $sql = 'UPDATE ' . $this->table_prefix . 'topics SET is_private = ' . $is_private . ' WHERE topic_id = ' . $topic_id;
@@ -224,7 +234,7 @@ class main_listener implements EventSubscriberInterface
     {
         $sql = 'SELECT user_id
                 FROM ' . $this->table_prefix . 'private_topic_users
-                WHERE topic_id = ' . $topic_id;
+                WHERE topic_id = ' . $topic_id . ' and permission_type = 1';
 
         $result = $this->db->sql_query($sql);
         while ($row = $this->db->sql_fetchrow($result))
