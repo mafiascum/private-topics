@@ -9,6 +9,10 @@
 
 namespace mafiascum\privateTopics\event;
 
+require_once(dirname(__FILE__) . "/../utils.php");
+
+use mafiascum\privateTopics\Utils;
+
 /**
  * @ignore
  */
@@ -135,35 +139,14 @@ class main_listener implements EventSubscriberInterface
         return $mode == 'post' || ($mode == 'edit' && $topic_first_post_id == $post_id);
     }
 
-    private function pt_join_clause($user_id, $table_alias = 't') {
-        return 'LEFT JOIN ' . $this->table_prefix . 'private_topic_users tu ON ' . $table_alias . '.topic_id = tu.topic_id AND tu.user_id = ' . $user_id . '
-                LEFT JOIN ' . $this->table_prefix . 'topic_mod tm ON ' . $table_alias . '.topic_id = tm.topic_id AND tm.user_id = '. $user_id;
-    }
-
-    private function pt_where_clause($table_alias = 't') {
-        return '(' . $table_alias . '.is_private = 0 OR tu.topic_id IS NOT NULL OR tm.topic_id IS NOT NULL)';
-    }
-
-    private function is_user_authorized_for_topic($user_id, $topic_id) {
-        $sql = 'SELECT count(*) as cnt
-                FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
-                WHERE t.topic_id = ' . $topic_id . ' AND ' . $this->pt_where_clause();
-
-        $result = $this->db->sql_query($sql);
-        $row = $this->db->sql_fetchrow($result);
-        $is_authorized = $row['cnt'] > 0;
-        $this->db->sql_freeresult($result);
-        return $is_authorized;
-    }
-
     private function get_authorized_topics_in_list($user_id, $topic_list)
     {
         if (empty($topic_list)) {
             return array();
         } else {
-            $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
+            $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . '
                 WHERE ' . $this->db->sql_in_set('t.topic_id', $topic_list) . '
-                AND ' . $this->pt_where_clause();
+                AND ' . Utils::pt_where_clause();
 
             $topics = array();
             $result = $this->db->sql_query($sql);
@@ -335,8 +318,11 @@ class main_listener implements EventSubscriberInterface
     public function require_authorized_for_private_topic($event) {
         // new topics don't have any need to check this.
         if ($event['topic_id']) {
-            $is_pt_authed = $this->is_user_authorized_for_topic(
+            $is_pt_authed = Utils::is_user_authorized_for_topic(
+                $this->db,
+                $this->auth,
                 $this->user->data['user_id'],
+                $event['forum_id'],
                 $event['topic_id']
             );
             
@@ -363,7 +349,7 @@ class main_listener implements EventSubscriberInterface
             'FROM' => array('(SELECT t.forum_id as t_forum_id, t.topic_id, topic_last_post_id, topic_last_post_subject, topic_last_post_time,
                                      topic_last_poster_id, topic_last_poster_name, topic_last_poster_colour,
                                      ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY topic_last_post_time desc ) as rank
-                              FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . ' WHERE ' . $this->pt_where_clause() . ')' => 't'),
+                              FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . ' WHERE ' . Utils::pt_where_clause() . ')' => 't'),
             'ON' => 'f.forum_id = t.t_forum_id AND t.rank = 1'
         );
         $event['sql_ary'] = $sql_array;
@@ -416,8 +402,8 @@ class main_listener implements EventSubscriberInterface
         $user_id = $this->user->data['user_id'];
 
         $event['sql_match_where'] .= ' AND p.topic_id IN (
-            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . $this->pt_join_clause($user_id, 't1') . '
-            WHERE ' . $this->pt_where_clause('t1') . '
+            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . Utils::pt_join_clause($user_id, 't1') . '
+            WHERE ' . Utils::pt_where_clause('t1') . '
         )';
     }
 
@@ -425,8 +411,8 @@ class main_listener implements EventSubscriberInterface
         $user_id = $this->user->data['user_id'];
 
         $event['sql_topic_id'] .= ' AND p.topic_id IN (
-            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . $this->pt_join_clause($user_id, 't1') . '
-            WHERE ' . $this->pt_where_clause('t1') . '
+            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . Utils::pt_join_clause($user_id, 't1') . '
+            WHERE ' . Utils::pt_where_clause('t1') . '
         )';
     }
 
