@@ -214,6 +214,20 @@ class main_listener implements EventSubscriberInterface
             $is_private = $this->request->variable('topic_privacy', 0);
             $sql = 'UPDATE ' . $this->table_prefix . 'topics SET is_private = ' . $is_private . ' WHERE topic_id = ' . $topic_id;
             $this->db->sql_query($sql);
+
+            if ($is_private) {
+                $sql = "DELETE FROM phpbb_topics_watch WHERE topic_id = " . $topic_id;
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_private_topic_users where topic_id = " . $topic_id . ")";
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_topic_mod where topic_id = " . $topic_id . ")";
+
+                $this->db->sql_query($sql);
+
+                $sql = "DELETE FROM phpbb_bookmarks WHERE topic_id = " . $topic_id;
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_private_topic_users where topic_id = " . $topic_id . ")";
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_topic_mod where topic_id = " . $topic_id . ")";
+
+                $this->db->sql_query($sql);
+            }
         }
     }
 
