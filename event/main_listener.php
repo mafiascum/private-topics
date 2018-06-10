@@ -73,7 +73,7 @@ class main_listener implements EventSubscriberInterface
             'core.viewtopic_before_f_read_check'             => 'require_authorized_for_private_topic',
             'core.viewtopic_modify_post_action_conditions'   => 'override_edit_checks',
 			'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
-			'core.viewforum_get_announcement_topic_ids_data' => 'viewforum_get_announcement_topic_ids_data',
+			'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
         );
     }
 
@@ -620,8 +620,8 @@ class main_listener implements EventSubscriberInterface
         }
 	}
 
-	public function viewforum_get_announcement_topic_ids_data($event) {
-		
+	function viewforum_get_topic_ids_data($event) {
+
 		$sql_ary = $event['sql_ary'];
 		$left_join = $sql_ary['LEFT_JOIN'];
 		$where = $sql_ary['WHERE'];
@@ -633,7 +633,7 @@ class main_listener implements EventSubscriberInterface
 			'ON' => 'ptu.topic_id = t.topic_id AND ptu.user_id = ' . $this->user->data['user_id']
 		);
 
-		$where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL)';
+		$where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
 
 		$sql_ary['LEFT_JOIN'] = $left_join;
 		$sql_ary['WHERE'] = $where;
