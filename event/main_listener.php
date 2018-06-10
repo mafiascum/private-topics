@@ -64,6 +64,7 @@ class main_listener implements EventSubscriberInterface
             'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
             'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
             'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
+            'core.search_sphinx_keywords_modify_options'   => 'filter_unauthorized_sphinx_search_private_topics',
             'core.submit_post_end'                         => 'update_private_users_and_mods',
             'core.submit_post_modify_sql_data'             => 'add_autolock_fields',
             'core.user_setup'                              => 'load_language_on_setup',
@@ -428,6 +429,15 @@ class main_listener implements EventSubscriberInterface
             SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . Utils::pt_join_clause($user_id, 't1') . '
             WHERE ' . Utils::pt_where_clause('t1') . '
         )';
+    }
+
+    public function filter_unauthorized_sphinx_search_private_topics($event) {
+        $user_id = $this->user->data['user_id'];
+        $sphinx = $event['sphinx'];
+
+        $sphinx->SetSelect("*, IF(is_private = 0 OR IN(authorized_users, " . $user_id . "), 1, 0) AS pt_filter");
+        $sphinx->SetFilter("pt_filter", array(1));
+        $event['sphinx'] = $sphinx;
     }
 
     public function add_private_label_to_current_topic($event) {
