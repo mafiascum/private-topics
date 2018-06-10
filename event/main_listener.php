@@ -50,29 +50,30 @@ class main_listener implements EventSubscriberInterface
     static public function getSubscribedEvents()
     {
         return array(
-            'core.acp_manage_forums_display_form'          => 'inject_topic_author_moderation',
-            'core.acp_manage_forums_initialise_data'       => 'initialize_topic_author_moderation',
-            'core.acp_manage_forums_request_data'          => 'submit_topic_author_moderation',
-            'core.display_forums_modify_row'               => 'replace_accurate_last_posts',
-            'core.display_forums_modify_sql'               => 'get_accurate_last_posts',
-            'core.mcp_post_additional_options'             => 'handle_mcp_additional_options',
-            'core.mcp_post_template_data'                  => 'inject_posting_template_vars_mcp',
-            'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
-            'core.posting_modify_cannot_edit_conditions'   => 'override_edit_checks',
-            'core.posting_modify_post_data'                => 'init_post_data',
-            'core.posting_modify_submit_post_before'       => 'handle_autolock',
-            'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
-            'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
-            'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
-            'core.search_sphinx_keywords_modify_options'   => 'filter_unauthorized_sphinx_search_private_topics',
-            'core.submit_post_end'                         => 'update_private_users_and_mods',
-            'core.submit_post_modify_sql_data'             => 'add_autolock_fields',
-            'core.user_setup'                              => 'load_language_on_setup',
-            'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
-            'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
-            'core.viewtopic_before_f_read_check'           => 'require_authorized_for_private_topic',
-            'core.viewtopic_modify_post_action_conditions' => 'override_edit_checks',
-            'core.viewtopic_modify_post_data'              => 'add_viewtopic_template_data',
+            'core.acp_manage_forums_display_form'            => 'inject_topic_author_moderation',
+            'core.acp_manage_forums_initialise_data'         => 'initialize_topic_author_moderation',
+            'core.acp_manage_forums_request_data'            => 'submit_topic_author_moderation',
+            'core.display_forums_modify_row'                 => 'replace_accurate_last_posts',
+            'core.display_forums_modify_sql'                 => 'get_accurate_last_posts',
+            'core.mcp_post_additional_options'               => 'handle_mcp_additional_options',
+            'core.mcp_post_template_data'                    => 'inject_posting_template_vars_mcp',
+            'core.modify_posting_auth'                       => 'require_authorized_for_private_topic',
+            'core.posting_modify_cannot_edit_conditions'     => 'override_edit_checks',
+            'core.posting_modify_post_data'                  => 'init_post_data',
+            'core.posting_modify_submit_post_before'         => 'handle_autolock',
+            'core.posting_modify_template_vars'              => 'inject_posting_template_vars_post',
+            'core.search_mysql_author_query_before'          => 'filter_unauthorized_author_search_private_topics',
+            'core.search_mysql_keywords_main_query_before'   => 'filter_unauthorized_keyword_search_private_topics',
+            'core.search_sphinx_keywords_modify_options'     => 'filter_unauthorized_sphinx_search_private_topics',
+            'core.submit_post_end'                           => 'update_private_users_and_mods',
+            'core.submit_post_modify_sql_data'               => 'add_autolock_fields',
+            'core.user_setup'                                => 'load_language_on_setup',
+            'core.viewforum_modify_topics_data'              => 'filter_unauthorized_chosen_private_topics',
+            'core.viewtopic_assign_template_vars_before'     => 'add_private_label_to_current_topic',
+            'core.viewtopic_before_f_read_check'             => 'require_authorized_for_private_topic',
+            'core.viewtopic_modify_post_action_conditions'   => 'override_edit_checks',
+			'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
+			'core.viewforum_get_announcement_topic_ids_data' => 'viewforum_get_announcement_topic_ids_data',
         );
     }
 
@@ -617,5 +618,26 @@ class main_listener implements EventSubscriberInterface
         if ($action == 'add' || $action == 'edit') {
             $this->template->assign_var('TOPIC_AUTHOR_MODERATION', $forum_data['topic_author_moderation']);
         }
-    }
+	}
+
+	public function viewforum_get_announcement_topic_ids_data($event) {
+		
+		$sql_ary = $event['sql_ary'];
+		$left_join = $sql_ary['LEFT_JOIN'];
+		$where = $sql_ary['WHERE'];
+
+		$left_join[] = array(
+			'FROM' => array (
+				'phpbb_private_topic_users' => 'ptu',
+			),
+			'ON' => 'ptu.topic_id = t.topic_id AND ptu.user_id = ' . $this->user->data['user_id']
+		);
+
+		$where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL)';
+
+		$sql_ary['LEFT_JOIN'] = $left_join;
+		$sql_ary['WHERE'] = $where;
+
+		$event['sql_ary'] = $sql_ary;
+	}
 }
