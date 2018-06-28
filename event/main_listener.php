@@ -72,8 +72,9 @@ class main_listener implements EventSubscriberInterface
             'core.viewtopic_assign_template_vars_before'     => 'add_private_label_to_current_topic',
             'core.viewtopic_before_f_read_check'             => 'require_authorized_for_private_topic',
             'core.viewtopic_modify_post_action_conditions'   => 'override_edit_checks',
-			'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
-			'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
+            'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
+            'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
+            'core.search_modify_submit_parameters'           => 'search_modify_submit_parameters',
         );
     }
 
@@ -88,7 +89,12 @@ class main_listener implements EventSubscriberInterface
         $this->language = $language;
         $this->auth = $auth;
         $this->table_prefix = $table_prefix;
-    }
+	}
+	
+	public function search_modify_submit_parameters($event) {
+		//Set this constant before the sphinx code does.
+		define('SPHINX_MAX_MATCHES', 100000);
+	 }
 
     public function load_language_on_setup($event)
     {
