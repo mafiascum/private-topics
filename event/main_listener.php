@@ -45,7 +45,9 @@ class main_listener implements EventSubscriberInterface
     protected $auth;
 
     /* phpbb\language\language */
-    protected $language;
+	protected $language;
+	
+	protected $private_topic_forums = Array(90, 94, 123);
 
     static public function getSubscribedEvents()
     {
@@ -164,7 +166,12 @@ class main_listener implements EventSubscriberInterface
             $this->db->sql_freeresult($result);
             return $topics;
         }
-    }
+	}
+	
+	private function is_private_topic_forum($forum_id)
+	{
+		return in_array($forum_id, $this->private_topic_forums);
+	}
 
     private function update_private_entities($event, $new_users, $table_name, $addl_where = '')
     {
@@ -239,7 +246,7 @@ class main_listener implements EventSubscriberInterface
         }
     }
 
-    private function inject_posting_template_vars($topic_id)
+    private function inject_posting_template_vars($forum_id, $topic_id)
     {
         $sql = 'SELECT user_id
                 FROM ' . $this->table_prefix . 'private_topic_users
@@ -286,8 +293,8 @@ class main_listener implements EventSubscriberInterface
                     WHERE topic_id = ' . $topic_id;
         $result = $this->db->sql_query($sql);
         $row = $this->db->sql_fetchrow($result);
-        
-        $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1');
+		
+        $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1' || ($row['is_private'] == '' && $this->is_private_topic_forum($forum_id)));
         $this->db->sql_freeresult($result);
     }
 
@@ -327,14 +334,14 @@ class main_listener implements EventSubscriberInterface
 
     public function inject_posting_template_vars_post($event) {
         if ($this->will_configure_private_topics($event)) {
-            $this->inject_posting_template_vars($event['topic_id']);
+            $this->inject_posting_template_vars($event['forum_id'], $event['topic_id']);
         }
 
         $this->inject_autolock_template_vars($event);
     }
 
     public function inject_posting_template_vars_mcp($event) {
-        $this->inject_posting_template_vars($event['post_info']['topic_id']);
+        $this->inject_posting_template_vars($event['post_info']['forum_id'], $event['post_info']['topic_id']);
     }
 
     public function require_authorized_for_private_topic($event) {
