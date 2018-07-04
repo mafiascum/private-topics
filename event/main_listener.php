@@ -76,7 +76,8 @@ class main_listener implements EventSubscriberInterface
             'core.viewtopic_modify_post_action_conditions'   => 'override_edit_checks',
             'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
             'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
-            'core.search_modify_submit_parameters'           => 'search_modify_submit_parameters',
+			'core.search_modify_submit_parameters'           => 'search_modify_submit_parameters',
+			'core.notification_manager_add_notifications'    => 'notification_manager_add_notifications',
         );
     }
 
@@ -633,7 +634,7 @@ class main_listener implements EventSubscriberInterface
         }
 	}
 
-	function viewforum_get_topic_ids_data($event) {
+	public function viewforum_get_topic_ids_data($event) {
 
 		$sql_ary = $event['sql_ary'];
 		$left_join = $sql_ary['LEFT_JOIN'];
@@ -652,5 +653,65 @@ class main_listener implements EventSubscriberInterface
 		$sql_ary['WHERE'] = $where;
 
 		$event['sql_ary'] = $sql_ary;
+	}
+
+	private function is_private($topic_id)
+	{
+        $sql = 'SELECT is_private
+                FROM ' . $this->table_prefix . 'topics
+				WHERE topic_id = ' . $topic_id;
+			
+		$is_private = false;
+		$result = $this->db->sql_query($sql);
+		while($row = $this->db->sql_fetchrow($result))
+		{
+			if($row['is_private'] == '1') {
+				$is_private = true;
+			}
+		}
+		$this->db->sql_freeresult($result);
+		return $is_private;
+	}
+
+	private function get_private_topic_users($topic_id) {
+		$sql = 'SELECT user_id
+				FROM ' . $this->table_prefix . 'private_topic_users
+				WHERE topic_id=' . $topic_id;
+
+		$authorized_users = Array();
+		$result = $this->db->sql_query($sql);
+		while($row = $this->db->sql_fetchrow($result))
+		{
+			$authorized_users[] = $row['user_id'];
+		}
+		$this->db->sql_freeresult($result);
+		return $authorized_users;
+	}
+
+	public function notification_manager_add_notifications($event) {
+
+		$data = $event['data'];
+		
+		if(array_key_exists("topic_id", $data))
+		{
+			$topic_id = $data['topic_id'];
+			$is_private = $this->is_private($topic_id);
+
+			if($is_private) {
+				
+				$notify_users = $event['notify_users'];
+
+				$authorized_users = $this->get_private_topic_users($topic_id);
+
+				foreach($notify_users as $notify_user_id => $notify_user_entry)
+				{
+					if(!in_array($notify_user_id, $authorized_users)) {
+						unset($notify_users[$notify_user_id]);
+					}
+				}
+
+				$event['notify_users'] = $notify_users;
+			}
+		}
 	}
 }
