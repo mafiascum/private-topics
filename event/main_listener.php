@@ -47,7 +47,7 @@ class main_listener implements EventSubscriberInterface
     /* phpbb\language\language */
 	protected $language;
 	
-	protected $private_topic_forums = Array(90, 94, 123);
+	protected $private_topic_forums = Array(90, 94, 123, 2);
 
     static public function getSubscribedEvents()
     {
@@ -78,6 +78,9 @@ class main_listener implements EventSubscriberInterface
             'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
 			'core.search_modify_submit_parameters'           => 'search_modify_submit_parameters',
 			'core.notification_manager_add_notifications'    => 'notification_manager_add_notifications',
+			'core.search_modify_param_after'                 => 'search_modify_param_after',
+			'core.search_modify_rowset'                      => 'search_modify_rowset',
+			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
         );
     }
 
@@ -713,5 +716,79 @@ class main_listener implements EventSubscriberInterface
 				$event['notify_users'] = $notify_users;
 			}
 		}
+	}
+
+	public function search_modify_param_after($event) {
+
+		$sql = $event['sql'];
+
+		if($sql)
+		{
+			$left_join = Utils::pt_join_clause($this->user->data['user_id']);
+			$where_addition = Utils::pt_where_clause();
+
+			$sql = str_replace('WHERE', ' WHERE ' . $where_addition . ' AND ', $sql);
+			$sql = str_replace('WHERE', ') ' . $left_join . ' WHERE ', $sql);
+			$sql = str_replace('FROM', ' FROM (', $sql);
+			
+			$event['sql'] = $sql;
+		}
+	}
+
+	public function search_modify_rowset($event) {
+		
+		//Remove any searched posts or topics from search results.
+		//May have been missed by Sphinx if indexing is delayed.
+
+		$rowset = $event['rowset'];
+
+		$topic_ids = array();
+		$topic_ids_set = array();
+
+		foreach($rowset as $index => $row)
+		{
+			$topic_id = $row['topic_id'];
+
+			if(!array_key_exists($topic_id, $topic_ids_set))
+			{
+				$topic_ids[] = $topic_id;
+				$topic_ids_set[$topic_id] = true;
+			}
+		}
+
+		$authorized_topics = $this->get_authorized_topics_in_list($this->user->data['user_id'], $topic_ids);
+		$removed_topic_ids = array();
+
+		foreach($rowset as $index => $row)
+		{
+			$topic_id = $row['topic_id'];
+
+			if(!array_key_exists($topic_id, $authorized_topics))
+			{
+				unset($rowset[$index]);
+				$removed_topic_ids[] = $topic_id;
+			}
+		}
+
+		if(!empty($removed_topic_ids))
+		{
+			$event['rowset'] = $rowset;
+		}
+	}
+	
+	public function get_unread_topics_modify_sql($event)
+	{
+		$sql_array = $event['sql_array'];
+
+		$where = $sql_array['WHERE'];
+		$left_join = $sql_array['LEFT_JOIN'];
+
+		Utils::pt_append_join_clause($left_join, $this->user->data['user_id']);
+		$where = Utils::pt_where_clause() . ' AND ' . $where;
+		
+		$sql_array['WHERE'] = $where;
+		$sql_array['LEFT_JOIN'] = $left_join;
+
+		$event['sql_array'] = $sql_array;
 	}
 }

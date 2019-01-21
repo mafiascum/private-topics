@@ -31,9 +31,27 @@ class Utils {
     public static function pt_join_clause($user_id, $table_alias = 't') {
         global $table_prefix;
 
-        return 'LEFT JOIN ' . $table_prefix . 'private_topic_users tu ON ' . $table_alias . '.topic_id = tu.topic_id AND tu.user_id = ' . $user_id . '
-                LEFT JOIN ' . $table_prefix . 'topic_mod tm ON ' . $table_alias . '.topic_id = tm.topic_id AND tm.user_id = '. $user_id;
-    }
+        return 'LEFT JOIN ' . $table_prefix . 'private_topic_users tu ON (' . $table_alias . '.topic_id = tu.topic_id AND tu.user_id = ' . $user_id . ')
+                LEFT JOIN ' . $table_prefix . 'topic_mod tm ON (' . $table_alias . '.topic_id = tm.topic_id AND tm.user_id = '. $user_id . ')';
+	}
+	
+	public static function pt_append_join_clause(&$left_join, $user_id, $table_alias = 't') {
+		global $table_prefix;
+
+		$left_join[] = array(
+			'FROM' => array(
+				$table_prefix . 'private_topic_users' => 'tu'
+			),
+			'ON' => $table_alias . '.topic_id = tu.topic_id AND tu.user_id = ' . $user_id
+		);
+
+		$left_join[] = array(
+			'FROM' => array(
+				$table_prefix . 'topic_mod' => 'tm'
+			),
+			'ON' => $table_alias . '.topic_id = tm.topic_id AND tm.user_id = '. $user_id
+		);
+	}
 
     public static function pt_where_clause($table_alias = 't') {
         return '(' . $table_alias . '.is_private = 0 OR tu.topic_id IS NOT NULL OR tm.topic_id IS NOT NULL)';
