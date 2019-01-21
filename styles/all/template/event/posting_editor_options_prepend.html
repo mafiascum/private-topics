@@ -1,5 +1,6 @@
 {% if S_NEW_MESSAGE %}
 
+{% if IS_PRIVATE_FORUM %}
 <label>{{ lang('CHANGE_PRIVACY') }}</label>
 <label for="topic_privacy_public">
   <input type="radio" name="topic_privacy" id="topic_privacy_public" value="0" {% if !IS_PRIVATE %} checked {% endif %}>{{ lang('PUBLIC') }}
@@ -23,6 +24,8 @@
 <div>
   <input id="pt_user" class="inputbox autowidth" type="text" data-endpoint="{{ ROOT_PATH }}app.php/verify_username"> <input type="button" class="button2" value="{{ lang('ADD_USER') }}" onclick="verify_username('pt_user', 'pt_user_list', 'pt_users')">
 </div>
+
+{% endif %}
 
 <hr class="dashed">
 

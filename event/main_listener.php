@@ -296,9 +296,12 @@ class main_listener implements EventSubscriberInterface
                     FROM ' . $this->table_prefix . 'topics
                     WHERE topic_id = ' . $topic_id;
         $result = $this->db->sql_query($sql);
-        $row = $this->db->sql_fetchrow($result);
+		$row = $this->db->sql_fetchrow($result);
 		
-        $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1' || ($row['is_private'] == '' && $this->is_private_topic_forum($forum_id)));
+		$is_private_forum = $this->is_private_topic_forum($forum_id);
+		
+		$this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1' || ($row['is_private'] == '' && $is_private_forum));
+		$this->template->assign_var('IS_PRIVATE_FORUM', $is_private_forum);
         $this->db->sql_freeresult($result);
     }
 
