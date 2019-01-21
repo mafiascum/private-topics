@@ -49,6 +49,8 @@ class main_listener implements EventSubscriberInterface
 	
 	protected $private_topic_forums = Array(90, 94, 123, 2);
 
+	protected $sphinx_max_matches = 100000;
+
     static public function getSubscribedEvents()
     {
         return array(
@@ -81,6 +83,7 @@ class main_listener implements EventSubscriberInterface
 			'core.search_modify_param_after'                 => 'search_modify_param_after',
 			'core.search_modify_rowset'                      => 'search_modify_rowset',
 			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
+			'core.search_backend_search_after'               => 'search_backend_search_after'
         );
     }
 
@@ -99,7 +102,7 @@ class main_listener implements EventSubscriberInterface
 	
 	public function search_modify_submit_parameters($event) {
 		//Set this constant before the sphinx code does.
-		define('SPHINX_MAX_MATCHES', 100000);
+		define('SPHINX_MAX_MATCHES', $this->sphinx_max_matches);
 	 }
 
     public function load_language_on_setup($event)
@@ -324,7 +327,7 @@ class main_listener implements EventSubscriberInterface
                                   $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
             
             $topic_autolock_allowed = $perm_lock_unlock || $this->is_topic_moderator($this->user->data['user_id'], $post_id, $post_data['topic_author_moderation']);
-        }
+		}
 
         if ($submit || $preview || $refresh) {
             $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
@@ -517,7 +520,7 @@ class main_listener implements EventSubscriberInterface
 
     public function add_autolock_fields($event)
     {
-        $post_mode = $event['post_mode'];
+		$post_mode = $event['post_mode'];
 
         if ($post_mode == 'post' || $post_mode == 'edit_first_post' || $post_mode == 'edit_topic') {
             $data = $event['data'];
@@ -570,7 +573,15 @@ class main_listener implements EventSubscriberInterface
         if($minutes > 0)
             array_push($buffer_arr, $minutes . " minute" . ($minutes == 1 ? "" : "s"));
         return join(", ", $buffer_arr);
-    }
+	}
+	
+	public function user_has_lock_unlock_permission() {
+		return
+		($this->auth->acl_get('m_lock', $forum_id) ||
+        ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
+        !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
+        $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+	}
     
     public function handle_autolock($event) {
         $post_data = $event['post_data'];
@@ -793,5 +804,10 @@ class main_listener implements EventSubscriberInterface
 		$sql_array['LEFT_JOIN'] = $left_join;
 
 		$event['sql_array'] = $sql_array;
+	}
+
+	public function search_backend_search_after($event)
+	{
+		$event['total_match_count'] = $this->sphinx_max_matches;
 	}
 }
