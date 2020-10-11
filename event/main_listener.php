@@ -61,7 +61,8 @@ class main_listener implements EventSubscriberInterface
             'core.display_forums_modify_sql'                 => 'get_accurate_last_posts',
             'core.mcp_post_additional_options'               => 'handle_mcp_additional_options',
             'core.mcp_post_template_data'                    => 'inject_posting_template_vars_mcp',
-            'core.modify_posting_auth'                       => 'require_authorized_for_private_topic',
+            'core.modify_posting_auth'                       => 'modify_posting_auth',
+            'core.posting_modify_message_text'               => 'clear_moderator_lock_flag',
             'core.posting_modify_cannot_edit_conditions'     => 'override_edit_checks',
             'core.posting_modify_post_data'                  => 'init_post_data',
             'core.posting_modify_submit_post_before'         => 'handle_autolock',
@@ -83,7 +84,7 @@ class main_listener implements EventSubscriberInterface
 			'core.search_modify_param_after'                 => 'search_modify_param_after',
 			'core.search_modify_rowset'                      => 'search_modify_rowset',
 			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
-			'core.search_backend_search_after'               => 'search_backend_search_after'
+            'core.search_backend_search_after'               => 'search_backend_search_after',
         );
     }
 
@@ -382,6 +383,42 @@ class main_listener implements EventSubscriberInterface
         }
     }
 
+    public function modify_posting_auth($event) {
+        $this->require_authorized_for_private_topic($event);
+
+        $post_data = $event['post_data'];
+
+        //For locked topics, we need to trick the auth handler into thinking it is unlocked for the moment if the user is authorized to post in a locked topic.
+        //Fully admit this is a hack for circumventing the auth->acl call,
+        //But really what we need is a t_* permissions scope and we don't have it
+        if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED &&
+            Utils::is_topic_moderator(
+                $this->db,
+                $this->table_prefix,
+                $this->auth,
+                $this->user,
+                $event['forum_id'],
+                $event['topic_id'],
+                $post_data['topic_poster'], 
+                $post_data['topic_author_moderation']
+            )) {
+                $post_data['topic_status'] = ITEM_UNLOCKED;
+                $post_data['temporarily_locked_on_behalf_of_topic_moderator'] = 1;
+                $event['post_data'] = $post_data;
+            }
+    }
+
+    public function clear_moderator_lock_flag($event) {
+        // clear moderator circumvent flag if set and relock
+
+        $post_data = $event['post_data'];
+        if ($post_data['temporarily_locked_on_behalf_of_topic_moderator']) {
+            $post_data['topic_status'] = ITEM_LOCKED;
+            unset($post_data['temporarily_locked_on_behalf_of_topic_moderator']);
+            $event['post_data'] = $post_data;
+        }
+    }
+
     public function get_accurate_last_posts($event) {
         $user_id = $this->user->data['user_id'];
         $sql_array = $event['sql_ary'];
@@ -520,6 +557,7 @@ class main_listener implements EventSubscriberInterface
         $user_id = $this->user->data['user_id'];
         $forum_id = $event['topic_data']['forum_id'] ?: $event['post_data']['forum_id'];
         $topic_id = $event['topic_data']['topic_id'] ?: $event['post_data']['topic_id'];
+        $topic_poster = $event['topic_data']['topic_poster'] ?: $event['post_data']['topic_poster'];
         $topic_author_moderation = $event['topic_data']['topic_author_moderation'] ?: $event['post_data']['topic_author_moderation'];
         $is_topic_mod = Utils::is_topic_moderator(
             $this->db, 
@@ -527,11 +565,12 @@ class main_listener implements EventSubscriberInterface
             $this->auth,
             $this->user,
             $forum_id,
-            $topic_id, 
-            $post_data['topic_poster'], 
-            $post_data['topic_author_moderation']);
+            $topic_id,
+            $topic_poster,
+            $topic_author_moderation);
         
         $event['force_edit_allowed'] = $event['force_edit_allowed'] || $is_topic_mod;
+        $event['force_delete_allowed'] = $event['force_delete_allowed'] || $is_topic_mod;
     }
 
     public function add_viewtopic_template_data($event) {
