@@ -3,7 +3,6 @@
     "type": "phpbb-extension",
     "description": "Mafiascum Privte Topics",
     "homepage": "https://github.com/mafiascum/private-topics",
-    "version": "0.1.0",
     "time": "2017-09-17",
     "license": "GPL-2.0",
     "authors": [{
