@@ -1,8 +1,10 @@
 function verify_username(inputElemId, outputElemId, formElemName) {
     const inputElem = $(`#${inputElemId}`);
-    const outputElem = $(`#${outputElemId}`);
-
-    fetch(`/app.php/verify_username?q=${inputElem.val()}`)
+	const outputElem = $(`#${outputElemId}`);
+	
+	var endpoint = inputElem.attr('data-endpoint') + '?q=' + inputElem.val();
+	
+    fetch(endpoint)
         .then(response => response.json())
         .then(data => {
             if (data.length) {

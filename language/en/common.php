@@ -35,4 +35,9 @@ $lang = array_merge($lang, array(
 	'AUTOLOCK_FORMAT'		          => 'Valid format is: YYYY-MM-DD HH:MM 00.00 (ex: 2015-09-30 15:30 -5.00 will lock Sep 30 2015 at 3:30PM EST(GMT-5))',
     'TOPIC_AUTHOR_MODERATION'         => 'Enable Topic Author Moderation',
     'TOPIC_AUTHOR_MODERATION_EXPLAIN' => 'If set to yes authors of topics in this forum will have moderator edit permission in their own topics.',
+    'LOCK_TOPIC_CONFIRM'		      => 'Are you sure you want to lock this topic?',
+    'UNLOCK_TOPIC_CONFIRM'            => 'Are you sure you want to unlock this topic?',
+    'TOPIC_LOCKED_SUCCESS'		      => 'The selected topic has been locked.',
+    'TOPIC_UNLOCKED_SUCCESS'	      => 'The selected topic has been unlocked.',
+
 ));

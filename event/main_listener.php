@@ -9,6 +9,10 @@
 
 namespace mafiascum\privateTopics\event;
 
+require_once(dirname(__FILE__) . "/../utils.php");
+
+use mafiascum\privateTopics\Utils;
+
 /**
  * @ignore
  */
@@ -41,37 +45,51 @@ class main_listener implements EventSubscriberInterface
     protected $auth;
 
     /* phpbb\language\language */
-    protected $language;
+	protected $language;
+	
+	protected $private_topic_forums = Array(90, 94, 123, 2);
+
+	protected $sphinx_max_matches = 100000;
 
     static public function getSubscribedEvents()
     {
         return array(
-            'core.acp_manage_forums_display_form'          => 'inject_topic_author_moderation',
-            'core.acp_manage_forums_initialise_data'       => 'initialize_topic_author_moderation',
-            'core.acp_manage_forums_request_data'          => 'submit_topic_author_moderation',
-            'core.display_forums_modify_row'               => 'replace_accurate_last_posts',
-            'core.display_forums_modify_sql'               => 'get_accurate_last_posts',
-            'core.mcp_post_additional_options'             => 'handle_mcp_additional_options',
-            'core.mcp_post_template_data'                  => 'inject_posting_template_vars_mcp',
-            'core.modify_posting_auth'                     => 'require_authorized_for_private_topic',
-            'core.posting_modify_cannot_edit_conditions'   => 'override_edit_checks',
-            'core.posting_modify_post_data'                => 'init_post_data',
-            'core.posting_modify_submit_post_before'       => 'handle_autolock',
-            'core.posting_modify_template_vars'            => 'inject_posting_template_vars_post',
-            'core.search_mysql_author_query_before'        => 'filter_unauthorized_author_search_private_topics',
-            'core.search_mysql_keywords_main_query_before' => 'filter_unauthorized_keyword_search_private_topics',
-            'core.submit_post_end'                         => 'update_private_users_and_mods',
-            'core.submit_post_modify_sql_data'             => 'add_autolock_fields',
-            'core.user_setup'                              => 'load_language_on_setup',
-            'core.viewforum_modify_topics_data'            => 'filter_unauthorized_chosen_private_topics',
-            'core.viewtopic_assign_template_vars_before'   => 'add_private_label_to_current_topic',
-            'core.viewtopic_before_f_read_check'           => 'require_authorized_for_private_topic',
-            'core.viewtopic_modify_post_action_conditions' => 'override_edit_checks',
-            'core.viewtopic_modify_post_data'              => 'add_viewtopic_template_data',
+            'core.acp_manage_forums_display_form'            => 'inject_topic_author_moderation',
+            'core.acp_manage_forums_initialise_data'         => 'initialize_topic_author_moderation',
+            'core.acp_manage_forums_request_data'            => 'submit_topic_author_moderation',
+            'core.display_forums_modify_row'                 => 'replace_accurate_last_posts',
+            'core.display_forums_modify_sql'                 => 'get_accurate_last_posts',
+            'core.mcp_post_additional_options'               => 'handle_mcp_additional_options',
+            'core.mcp_post_template_data'                    => 'inject_posting_template_vars_mcp',
+            'core.modify_posting_auth'                       => 'modify_posting_auth',
+            'core.posting_modify_message_text'               => 'clear_moderator_lock_flag',
+            'core.posting_modify_cannot_edit_conditions'     => 'override_edit_checks',
+            'core.handle_post_delete_conditions'             => 'override_edit_checks',
+            'core.posting_modify_post_data'                  => 'init_post_data',
+            'core.posting_modify_submit_post_before'         => 'handle_autolock',
+            'core.posting_modify_template_vars'              => 'inject_posting_template_vars_post',
+            'core.search_mysql_author_query_before'          => 'filter_unauthorized_author_search_private_topics',
+            'core.search_mysql_keywords_main_query_before'   => 'filter_unauthorized_keyword_search_private_topics',
+            'core.search_sphinx_keywords_modify_options'     => 'filter_unauthorized_sphinx_search_private_topics',
+            'core.submit_post_end'                           => 'update_private_users_and_mods',
+            'core.submit_post_modify_sql_data'               => 'add_autolock_fields',
+            'core.user_setup'                                => 'load_language_on_setup',
+            'core.viewforum_modify_topics_data'              => 'filter_unauthorized_chosen_private_topics',
+            'core.viewtopic_assign_template_vars_before'     => 'add_private_label_to_current_topic',
+            'core.viewtopic_before_f_read_check'             => 'require_authorized_for_private_topic',
+            'core.viewtopic_modify_post_action_conditions'   => 'override_edit_checks',
+            'core.viewtopic_modify_post_data'                => 'add_viewtopic_template_data',
+            'core.viewforum_get_topic_ids_data'              => 'viewforum_get_topic_ids_data',
+			'core.search_modify_submit_parameters'           => 'search_modify_submit_parameters',
+			'core.notification_manager_add_notifications'    => 'notification_manager_add_notifications',
+			'core.search_modify_param_after'                 => 'search_modify_param_after',
+			'core.search_modify_rowset'                      => 'search_modify_rowset',
+			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
+            'core.search_backend_search_after'               => 'search_backend_search_after',
         );
     }
 
-    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, \phpbb\auth\auth $auth, $table_prefix)
+    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, \phpbb\auth\auth $auth, $table_prefix, $root_path, $php_ext)
     {
         $this->helper = $helper;
         $this->template = $template;
@@ -82,7 +100,14 @@ class main_listener implements EventSubscriberInterface
         $this->language = $language;
         $this->auth = $auth;
         $this->table_prefix = $table_prefix;
-    }
+        $this->phpbb_root_path = $root_path;
+        $this->php_ext = $php_ext;
+	}
+	
+	public function search_modify_submit_parameters($event) {
+		//Set this constant before the sphinx code does.
+		define('SPHINX_MAX_MATCHES', $this->sphinx_max_matches);
+	 }
 
     public function load_language_on_setup($event)
     {
@@ -94,24 +119,22 @@ class main_listener implements EventSubscriberInterface
         $event['lang_set_ext'] = $lang_set_ext;
     }
 
-    private function is_topic_moderator($user_id, $topic_id, $topic_author_moderation) {
-        if (!$topic_author_moderation) {
-            return false;
-        }
-
-        $sql = 'SELECT count(*) cnt FROM ' . $this->table_prefix . 'topic_mod' . ' WHERE user_id = ' . $user_id . ' AND topic_id = ' . $topic_id;
-        $result = $this->db->sql_query($sql);
-        $row = $this->db->sql_fetchrow($result);
-        return $row['cnt'] > 0;
-    }
-
     // quick mod tools
     // utterly lifted from old code base.
-    private function get_quick_mod_html($topic_id, $topic_data, $forum_id) {
-        $isTopicModerator = $this->is_topic_moderator($this->user->data['user_id'], $topic_id, $topic_data['topic_author_moderation']);
+    private function get_quick_mod_html($topic_id, $poster_id, $topic_data, $forum_id) {
+        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+        $can_lock = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
+            $this->db, 
+            $this->table_prefix, 
+            $this->user->data['user_id'],
+            $forum_id,
+            $topic_id, 
+            $topic_data['topic_poster'], 
+            $topic_data['topic_author_moderation']);
+
         $allow_change_type = ($this->auth->acl_get('m_', $forum_id) || ($this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'])) ? true : false;
         $topic_mod = '';
-        $topic_mod .= ($this->auth->acl_get('m_lock', $forum_id) || $isTopicModerator || ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && $this->user->data['user_id'] == $topic_data['topic_poster'] /* && $topic_data['topic_status'] == ITEM_UNLOCKED */)) ? (($topic_data['topic_status'] == ITEM_UNLOCKED) ? '<option value="lock">' . $this->user->lang['LOCK_TOPIC'] . '</option>' : '<option value="unlock">' . $this->user->lang['UNLOCK_TOPIC'] . '</option>') : '';
+        $topic_mod .= $can_lock ? (($topic_data['topic_status'] == ITEM_UNLOCKED) ? '<option value="lock">' . $this->user->lang['LOCK_TOPIC'] . '</option>' : '<option value="unlock">' . $this->user->lang['UNLOCK_TOPIC'] . '</option>') : '';
         $topic_mod .= ($this->auth->acl_get('m_delete', $forum_id)) ? '<option value="delete_topic">' . $this->user->lang['DELETE_TOPIC'] . '</option>' : '';
         $topic_mod .= ($this->auth->acl_get('m_move', $forum_id) && $topic_data['topic_status'] != ITEM_MOVED) ? '<option value="move">' . $this->user->lang['MOVE_TOPIC'] . '</option>' : '';
         $topic_mod .= ($this->auth->acl_get('m_split', $forum_id)) ? '<option value="split">' . $this->user->lang['SPLIT_TOPIC'] . '</option>' : '';
@@ -135,47 +158,39 @@ class main_listener implements EventSubscriberInterface
         return $mode == 'post' || ($mode == 'edit' && $topic_first_post_id == $post_id);
     }
 
-    private function pt_join_clause($user_id, $table_alias = 't') {
-        return 'LEFT JOIN ' . $this->table_prefix . 'private_topic_users tu ON ' . $table_alias . '.topic_id = tu.topic_id AND tu.user_id = ' . $user_id . '
-                LEFT JOIN ' . $this->table_prefix . 'topic_mod tm ON ' . $table_alias . '.topic_id = tm.topic_id AND tm.user_id = '. $user_id;
-    }
-
-    private function pt_where_clause($table_alias = 't') {
-        return '(' . $table_alias . '.is_private = 0 OR tu.topic_id IS NOT NULL OR tm.topic_id IS NOT NULL)';
-    }
-
-    private function is_user_authorized_for_topic($user_id, $topic_id) {
-        $sql = 'SELECT count(*) as cnt
-                FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
-                WHERE t.topic_id = ' . $topic_id . ' AND ' . $this->pt_where_clause();
-
-        $result = $this->db->sql_query($sql);
-        $row = $this->db->sql_fetchrow($result);
-        $is_authorized = $row['cnt'] > 0;
-        $this->db->sql_freeresult($result);
-        return $is_authorized;
-    }
-
     private function get_authorized_topics_in_list($user_id, $topic_list)
     {
-        $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . '
+        if (empty($topic_list)) {
+            return array();
+        } else {
+            $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . '
                 WHERE ' . $this->db->sql_in_set('t.topic_id', $topic_list) . '
-                AND ' . $this->pt_where_clause();
+                AND ' . Utils::pt_where_clause();
 
-        $topics = array();
-        $result = $this->db->sql_query($sql);
-        while ($row = $this->db->sql_fetchrow($result)) {
-            $topics[$row['topic_id']] = $row['is_private'];
+            $topics = array();
+            $result = $this->db->sql_query($sql);
+            while ($row = $this->db->sql_fetchrow($result)) {
+                $topics[$row['topic_id']] = $row['is_private'];
+            }
+            $this->db->sql_freeresult($result);
+            return $topics;
         }
-        $this->db->sql_freeresult($result);
-        return $topics;
-    }
+	}
+	
+	private function is_private_topic_forum($forum_id)
+	{
+		return in_array($forum_id, $this->private_topic_forums);
+	}
 
-    private function update_private_entities($topic_id, $new_users, $table_name)
+    private function update_private_entities($event, $new_users, $table_name, $addl_where = '')
     {
+        $mode = $event['mode'];
+        $topic_id = $event['data']['topic_id'];
+        $poster_id = $event['data']['poster_id'];
+
         $old_users = array();
 
-        $sql = 'SELECT user_id FROM ' . $table_name . ' WHERE topic_id=' . $topic_id;
+        $sql = 'SELECT user_id FROM ' . $table_name . ' WHERE topic_id=' . $topic_id . $addl_where;
         $result = $this->db->sql_query($sql);
         while ($row = $this->db->sql_fetchrow($result)) {
             $old_users[] = $row['user_id'];
@@ -191,8 +206,10 @@ class main_listener implements EventSubscriberInterface
         }
         if (sizeof($private_users_add)) {
             foreach ($private_users_add as $user_id) {
-                $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
-                $this->db->sql_query($sql);
+                if ($mode == 'post' && $user_id != $this->user->data['user_id'] || $mode == 'edit' && $user_id != $poster_id) {
+                    $sql = 'INSERT INTO ' . $table_name . ' (user_id, topic_id) VALUES('. $user_id .','. $topic_id .');';
+                    $this->db->sql_query($sql);
+                }
             }
         }
     }
@@ -201,30 +218,48 @@ class main_listener implements EventSubscriberInterface
     {
         if ($this->will_configure_private_topics($event)) {
             $topic_id = $event['data']['topic_id'];
+            $poster_id = $event['data']['poster_id'];
 
             $new_users = $this->request->variable('pt_users', array(''));
             if ($new_users == array('')){
                 $new_users = array();  //this request->variable method requires you to type the elements of your default arg, or it will not behave like you want
             }
-            $this->update_private_entities($topic_id, $new_users, $this->table_prefix . 'private_topic_users');
+            $this->update_private_entities($event, $new_users, $this->table_prefix . 'private_topic_users', ' and permission_type = 1');
+
+            $sql = "INSERT IGNORE INTO phpbb_private_topic_users (topic_id, user_id, permission_type) VALUES (" . $topic_id . ',' . $poster_id . ", 2);";
+            $this->db->sql_query($sql);
         
             $new_mods = $this->request->variable('pt_mods', array(''));
             if ($new_mods == array('')){
                 $new_mods = array();  //this request->variable method requires you to type the elements of your default arg, or it will not behave like you want
             }
-            $this->update_private_entities($topic_id, $new_mods, $this->table_prefix . 'topic_mod');
+            $this->update_private_entities($event, $new_mods, $this->table_prefix . 'topic_mod');
 
             $is_private = $this->request->variable('topic_privacy', 0);
             $sql = 'UPDATE ' . $this->table_prefix . 'topics SET is_private = ' . $is_private . ' WHERE topic_id = ' . $topic_id;
             $this->db->sql_query($sql);
+
+            if ($is_private) {
+                $sql = "DELETE FROM phpbb_topics_watch WHERE topic_id = " . $topic_id;
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_private_topic_users where topic_id = " . $topic_id . ")";
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_topic_mod where topic_id = " . $topic_id . ")";
+
+                $this->db->sql_query($sql);
+
+                $sql = "DELETE FROM phpbb_bookmarks WHERE topic_id = " . $topic_id;
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_private_topic_users where topic_id = " . $topic_id . ")";
+                $sql = $sql . " AND user_id NOT IN (SELECT user_id FROM phpbb_topic_mod where topic_id = " . $topic_id . ")";
+
+                $this->db->sql_query($sql);
+            }
         }
     }
 
-    private function inject_posting_template_vars($topic_id)
+    private function inject_posting_template_vars($forum_id, $topic_id)
     {
         $sql = 'SELECT user_id
                 FROM ' . $this->table_prefix . 'private_topic_users
-                WHERE topic_id = ' . $topic_id;
+                WHERE topic_id = ' . $topic_id . ' and permission_type = 1';
 
         $result = $this->db->sql_query($sql);
         while ($row = $this->db->sql_fetchrow($result))
@@ -266,15 +301,19 @@ class main_listener implements EventSubscriberInterface
                     FROM ' . $this->table_prefix . 'topics
                     WHERE topic_id = ' . $topic_id;
         $result = $this->db->sql_query($sql);
-        $row = $this->db->sql_fetchrow($result);
-        
-        $this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1');
+		$row = $this->db->sql_fetchrow($result);
+		
+		$is_private_forum = $this->is_private_topic_forum($forum_id);
+		
+		$this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1' || ($row['is_private'] == '' && $is_private_forum));
+		$this->template->assign_var('IS_PRIVATE_FORUM', $is_private_forum);
         $this->db->sql_freeresult($result);
     }
 
     private function inject_autolock_template_vars($event) {
         $mode = $event['mode'];
         $post_id = $event['post_id'];
+        $topic_id = $event['topic_id'];
         $forum_id = $event['forum_id'];
         $post_data = $event['post_data'];
 
@@ -285,13 +324,17 @@ class main_listener implements EventSubscriberInterface
         $topic_autolock_allowed = false;
         
         if ($mode == 'post' || ($mode == 'edit' && $post_id == $post_data['topic_first_post_id'])) {
-            $perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) ||
-                                 ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
-                                  !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
-                                  $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
-            
-            $topic_autolock_allowed = $perm_lock_unlock || $this->is_topic_moderator($this->user->data['user_id'], $post_id, $post_data['topic_author_moderation']);
-        }
+            $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+
+            $topic_autolock_allowed = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
+                $this->db, 
+                $this->table_prefix,
+                $this->user->data['user_id'],
+                $forum_id,
+                $topic_id, 
+                $post_data['topic_poster'], 
+                $post_data['topic_author_moderation']);
+		}
 
         if ($submit || $preview || $refresh) {
             $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
@@ -308,21 +351,24 @@ class main_listener implements EventSubscriberInterface
 
     public function inject_posting_template_vars_post($event) {
         if ($this->will_configure_private_topics($event)) {
-            $this->inject_posting_template_vars($event['topic_id']);
+            $this->inject_posting_template_vars($event['forum_id'], $event['topic_id']);
         }
 
         $this->inject_autolock_template_vars($event);
     }
 
     public function inject_posting_template_vars_mcp($event) {
-        $this->inject_posting_template_vars($event['post_info']['topic_id']);
+        $this->inject_posting_template_vars($event['post_info']['forum_id'], $event['post_info']['topic_id']);
     }
 
     public function require_authorized_for_private_topic($event) {
         // new topics don't have any need to check this.
         if ($event['topic_id']) {
-            $is_pt_authed = $this->is_user_authorized_for_topic(
+            $is_pt_authed = Utils::is_user_authorized_for_topic(
+                $this->db,
+                $this->auth,
                 $this->user->data['user_id'],
+                $event['forum_id'],
                 $event['topic_id']
             );
             
@@ -339,6 +385,49 @@ class main_listener implements EventSubscriberInterface
         }
     }
 
+    public function modify_posting_auth($event) {
+        $this->require_authorized_for_private_topic($event);
+
+        $mode = $event['mode'];
+        $post_data = $event['post_data'];
+        
+        if ($mode === 'edit' || $mode === 'delete' || $mode === 'soft_delete' || $mode === 'reply') {
+            $is_topic_mod = Utils::is_moderator_by_topic_moderation(
+                $this->db,
+                $this->table_prefix,
+                $this->user->data['user_id'],
+                $event['forum_id'],
+                $event['topic_id'],
+                $post_data['topic_poster'], 
+                $post_data['topic_author_moderation']
+            );
+
+            // don't let the mcp perms tell us we can't delete posts
+            if ($is_topic_mod) {
+                $event['is_authed'] = true;
+            }
+
+            //For locked topics, we need to trick the auth handler into thinking it is unlocked for the moment if the user is authorized to post in a locked topic.
+            //Fully admit this is a hack for circumventing the auth->acl call,
+            //But really what we need is a t_* permissions scope and we don't have it
+            if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED && Utils::is_moderator_by_permissions('lock', $this->auth, $this->user) || is_topic_mod) {
+                $post_data['topic_status'] = ITEM_UNLOCKED;
+                $post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] = 1;
+                $event['post_data'] = $post_data;
+            }
+        }
+    }
+
+    public function clear_moderator_lock_flag($event) {
+        // clear moderator circumvent flag if set and relock
+        $post_data = $event['post_data'];
+        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']) {
+            $post_data['topic_status'] = ITEM_LOCKED;
+            unset($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']);
+            $event['post_data'] = $post_data;
+        }
+    }
+
     public function get_accurate_last_posts($event) {
         $user_id = $this->user->data['user_id'];
         $sql_array = $event['sql_ary'];
@@ -349,7 +438,7 @@ class main_listener implements EventSubscriberInterface
             'FROM' => array('(SELECT t.forum_id as t_forum_id, t.topic_id, topic_last_post_id, topic_last_post_subject, topic_last_post_time,
                                      topic_last_poster_id, topic_last_poster_name, topic_last_poster_colour,
                                      ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY topic_last_post_time desc ) as rank
-                              FROM ' . $this->table_prefix . 'topics t ' . $this->pt_join_clause($user_id) . ' WHERE ' . $this->pt_where_clause() . ')' => 't'),
+                              FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . ' WHERE ' . Utils::pt_where_clause() . ')' => 't'),
             'ON' => 'f.forum_id = t.t_forum_id AND t.rank = 1'
         );
         $event['sql_ary'] = $sql_array;
@@ -402,8 +491,8 @@ class main_listener implements EventSubscriberInterface
         $user_id = $this->user->data['user_id'];
 
         $event['sql_match_where'] .= ' AND p.topic_id IN (
-            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . $this->pt_join_clause($user_id, 't1') . '
-            WHERE ' . $this->pt_where_clause('t1') . '
+            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . Utils::pt_join_clause($user_id, 't1') . '
+            WHERE ' . Utils::pt_where_clause('t1') . '
         )';
     }
 
@@ -411,9 +500,18 @@ class main_listener implements EventSubscriberInterface
         $user_id = $this->user->data['user_id'];
 
         $event['sql_topic_id'] .= ' AND p.topic_id IN (
-            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . $this->pt_join_clause($user_id, 't1') . '
-            WHERE ' . $this->pt_where_clause('t1') . '
+            SELECT t1.topic_id FROM ' . $this->table_prefix . 'topics t1 ' . Utils::pt_join_clause($user_id, 't1') . '
+            WHERE ' . Utils::pt_where_clause('t1') . '
         )';
+    }
+
+    public function filter_unauthorized_sphinx_search_private_topics($event) {
+        $user_id = $this->user->data['user_id'];
+        $sphinx = $event['sphinx'];
+
+        $sphinx->SetSelect("*, IF(is_private = 0 OR IN(authorized_users, " . $user_id . "), 1, 0) AS pt_filter");
+        $sphinx->SetFilter("pt_filter", array(1));
+        $event['sphinx'] = $sphinx;
     }
 
     public function add_private_label_to_current_topic($event) {
@@ -428,6 +526,7 @@ class main_listener implements EventSubscriberInterface
 
     public function handle_mcp_additional_options($event) {
         $action = $event['action'];
+        $forum_id = $event['post_info']['forum_id'];
         $topic_id = $event['post_info']['topic_id'];
 
         switch ($action) {
@@ -438,7 +537,14 @@ class main_listener implements EventSubscriberInterface
             if ($user_id == ANONYMOUS) {
                 trigger_error('NO_USER');
             }
-            $is_mod = $this->is_topic_moderator($user_id, $topic_id, $event['post_info']['topic_author_moderation']);
+            $is_mod = Utils::is_moderator_by_topic_moderation(
+                $this->db, 
+                $this->table_prefix, 
+                $user_id,
+                $forum_id,
+                $topic_id, 
+                null, 
+                $event['post_info']['topic_author_moderation']);
 
             if (!$is_mod) {
                 $sql = 'INSERT INTO ' . $this->table_prefix . 'topic_mod' . ' (user_id, topic_id) VALUES ('. $user_id .','. $topic_id .');';
@@ -457,22 +563,66 @@ class main_listener implements EventSubscriberInterface
 
     public function override_edit_checks($event) {
         $user_id = $this->user->data['user_id'];
+        $forum_id = $event['topic_data']['forum_id'] ?: $event['post_data']['forum_id'];
         $topic_id = $event['topic_data']['topic_id'] ?: $event['post_data']['topic_id'];
+        $topic_poster = $event['topic_data']['topic_poster'] ?: $event['post_data']['topic_poster'];
         $topic_author_moderation = $event['topic_data']['topic_author_moderation'] ?: $event['post_data']['topic_author_moderation'];
-        $is_topic_mod = $this->is_topic_moderator($user_id, $topic_id, $topic_author_moderation);
+        $is_topic_moderator = Utils::is_moderator_by_topic_moderation(
+            $this->db, 
+            $this->table_prefix,
+            $this->user->data['user_id'],
+            $forum_id,
+            $topic_id,
+            $topic_poster,
+            $topic_author_moderation
+        );
+        $can_edit = Utils::is_moderator_by_permissions('edit', $this->auth, $this->user) || $is_topic_moderator;
+        $can_delete = Utils::is_moderator_by_permissions('delete', $this->auth, $this->user) || $is_topic_moderator;
+
         
-        $event['force_edit_allowed'] = $event['force_edit_allowed'] || $is_topic_mod;
+        $event['force_edit_allowed'] = $event['force_edit_allowed'] || $can_edit;
+        $event['force_delete_allowed'] = $event['force_delete_allowed'] || $can_delete;
+        $event['force_softdelete_allowed'] = $event['force_softdelete_allowed'] || $can_delete;
     }
 
     public function add_viewtopic_template_data($event) {
-        $quick_mod_html = $this->get_quick_mod_html($event['topic_id'], $event['topic_data'], $event['forum_id']);
+        $quick_mod_html = $this->get_quick_mod_html($event['topic_id'], $event['poster_id'], $event['topic_data'], $event['forum_id']);
+        // this is kind of a judgment call - if you're a true true mod, you shouldn't really be needing to mess with the topic_mod stuff
+        // There are certain combos of things here where if you have, say, m_edit perms and you're a topic_mod
+        // Where you would not be able to lock here. I think those situations should be resolved by giving m_lock to the user (seeing as how they have m_edit)
+        $is_mod_by_perms = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user) || 
+            Utils::is_moderator_by_permissions('edit', $this->auth, $this->user) || 
+            Utils::is_moderator_by_permissions('delete', $this->auth, $this->user);
 
+        $this->template->assign_var('CAN_USE_MCP', $is_mod_by_perms);
+
+        if (!$is_mod_by_perms) {
+            $forum_id = $event['forum_id'];
+            $topic_id = $event['topic_id'];
+
+            $viewtopic_url = append_sid("{$this->phpbb_root_path}viewtopic.$this->php_ext", "f=$forum_id&amp;t=$topic_id");
+
+
+            $this->template->assign_var('S_TOPIC_MOD_ACTION', append_sid(
+                "{$this->phpbb_root_path}app.php/lock",
+                array(
+                    'f'	=> $event['forum_id'],
+                    't'	=> $event['topic_id'],
+                    'start'		=> 0,
+                    'quickmod'	=> 1,
+                    'redirect'	=> urlencode(str_replace('&amp;', '&', $viewtopic_url)),
+                ),
+                true,
+                $user->session_id
+            ));
+        }
+        
         $this->template->assign_var('S_TOPIC_MOD', $quick_mod_html);
     }
 
     public function add_autolock_fields($event)
     {
-        $post_mode = $event['post_mode'];
+		$post_mode = $event['post_mode'];
 
         if ($post_mode == 'post' || $post_mode == 'edit_first_post' || $post_mode == 'edit_topic') {
             $data = $event['data'];
@@ -525,23 +675,39 @@ class main_listener implements EventSubscriberInterface
         if($minutes > 0)
             array_push($buffer_arr, $minutes . " minute" . ($minutes == 1 ? "" : "s"));
         return join(", ", $buffer_arr);
-    }
+	}
+	
+	public function user_has_lock_unlock_permission() {
+		return
+		($this->auth->acl_get('m_lock', $forum_id) ||
+        ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
+        !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
+        $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+	}
     
     public function handle_autolock($event) {
         $post_data = $event['post_data'];
         $data = $event['data'];
         $post_id = $event['post_id'];
+        $topic_id = $event['topic_id'];
         $forum_id = $event['forum_id'];
+        $post_data = $event['post_data'];
         $mode = $event['mode'];
         $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
 
-        $perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) ||
-                             ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] &&
-                              !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] &&
-                              $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+
+        $topic_autolock_allowed = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
+            $this->db, 
+            $this->table_prefix,
+            $this->user->data['user_id'],
+            $forum_id,
+            $topic_id, 
+            $post_data['topic_poster'],
+            $post_data['topic_author_moderation']);
 
 
-        if ($mode == 'post' || ($mode == 'edit' && $post_data['topic_first_post_id'] == $post_id) && $perm_lock_unlock) {
+        if ($mode == 'post' || ($mode == 'edit' && $post_data['topic_first_post_id'] == $post_id) && $topic_autolock_allowed) {
             $post_data['autolock_time'] = $autolock_arr['unix_timestamp'];
             $post_data['autolock_input'] = $autolock_arr['unix_timestamp'] == 0 ? "" : $autolock_arr['input'];
         }
@@ -593,5 +759,165 @@ class main_listener implements EventSubscriberInterface
         if ($action == 'add' || $action == 'edit') {
             $this->template->assign_var('TOPIC_AUTHOR_MODERATION', $forum_data['topic_author_moderation']);
         }
-    }
+	}
+
+	public function viewforum_get_topic_ids_data($event) {
+
+		$sql_ary = $event['sql_ary'];
+		$left_join = $sql_ary['LEFT_JOIN'];
+		$where = $sql_ary['WHERE'];
+
+		$left_join[] = array(
+			'FROM' => array (
+				'phpbb_private_topic_users' => 'ptu',
+			),
+			'ON' => 'ptu.topic_id = t.topic_id AND ptu.user_id = ' . $this->user->data['user_id']
+		);
+
+		$where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
+
+		$sql_ary['LEFT_JOIN'] = $left_join;
+		$sql_ary['WHERE'] = $where;
+
+		$event['sql_ary'] = $sql_ary;
+	}
+
+	private function is_private($topic_id)
+	{
+        $sql = 'SELECT is_private
+                FROM ' . $this->table_prefix . 'topics
+				WHERE topic_id = ' . $topic_id;
+			
+		$is_private = false;
+		$result = $this->db->sql_query($sql);
+		while($row = $this->db->sql_fetchrow($result))
+		{
+			if($row['is_private'] == '1') {
+				$is_private = true;
+			}
+		}
+		$this->db->sql_freeresult($result);
+		return $is_private;
+	}
+
+	private function get_private_topic_users($topic_id) {
+		$sql = 'SELECT user_id
+				FROM ' . $this->table_prefix . 'private_topic_users
+				WHERE topic_id=' . $topic_id;
+
+		$authorized_users = Array();
+		$result = $this->db->sql_query($sql);
+		while($row = $this->db->sql_fetchrow($result))
+		{
+			$authorized_users[] = $row['user_id'];
+		}
+		$this->db->sql_freeresult($result);
+		return $authorized_users;
+	}
+
+	public function notification_manager_add_notifications($event) {
+
+		$data = $event['data'];
+		
+		if(array_key_exists("topic_id", $data))
+		{
+			$topic_id = $data['topic_id'];
+			$is_private = $this->is_private($topic_id);
+
+			if($is_private) {
+				
+				$notify_users = $event['notify_users'];
+
+				$authorized_users = $this->get_private_topic_users($topic_id);
+
+				foreach($notify_users as $notify_user_id => $notify_user_entry)
+				{
+					if(!in_array($notify_user_id, $authorized_users)) {
+						unset($notify_users[$notify_user_id]);
+					}
+				}
+
+				$event['notify_users'] = $notify_users;
+			}
+		}
+	}
+
+	public function search_modify_param_after($event) {
+
+		$sql = $event['sql'];
+
+		if($sql)
+		{
+			$left_join = Utils::pt_join_clause($this->user->data['user_id']);
+			$where_addition = Utils::pt_where_clause();
+
+			$sql = str_replace('WHERE', ' WHERE ' . $where_addition . ' AND ', $sql);
+			$sql = str_replace('WHERE', ') ' . $left_join . ' WHERE ', $sql);
+			$sql = str_replace('FROM', ' FROM (', $sql);
+			
+			$event['sql'] = $sql;
+		}
+	}
+
+	public function search_modify_rowset($event) {
+		
+		//Remove any searched posts or topics from search results.
+		//May have been missed by Sphinx if indexing is delayed.
+
+		$rowset = $event['rowset'];
+
+		$topic_ids = array();
+		$topic_ids_set = array();
+
+		foreach($rowset as $index => $row)
+		{
+			$topic_id = $row['topic_id'];
+
+			if(!array_key_exists($topic_id, $topic_ids_set))
+			{
+				$topic_ids[] = $topic_id;
+				$topic_ids_set[$topic_id] = true;
+			}
+		}
+
+		$authorized_topics = $this->get_authorized_topics_in_list($this->user->data['user_id'], $topic_ids);
+		$removed_topic_ids = array();
+
+		foreach($rowset as $index => $row)
+		{
+			$topic_id = $row['topic_id'];
+
+			if(!array_key_exists($topic_id, $authorized_topics))
+			{
+				unset($rowset[$index]);
+				$removed_topic_ids[] = $topic_id;
+			}
+		}
+
+		if(!empty($removed_topic_ids))
+		{
+			$event['rowset'] = $rowset;
+		}
+	}
+	
+	public function get_unread_topics_modify_sql($event)
+	{
+		$sql_array = $event['sql_array'];
+
+		$where = $sql_array['WHERE'];
+		$left_join = $sql_array['LEFT_JOIN'];
+
+		Utils::pt_append_join_clause($left_join, $this->user->data['user_id']);
+		$where = Utils::pt_where_clause() . ' AND ' . $where;
+		
+		$sql_array['WHERE'] = $where;
+		$sql_array['LEFT_JOIN'] = $left_join;
+
+		$event['sql_array'] = $sql_array;
+	}
+
+	public function search_backend_search_after($event)
+	{
+		$event['total_match_count'] = $this->sphinx_max_matches;
+	}
 }
