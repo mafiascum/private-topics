@@ -1,8 +1,8 @@
 {
-    "name": "mafiascum/private-topics",
+    "name": "mafiascum/privatetopics",
     "type": "phpbb-extension",
-    "description": "Mafiascum Privte Topics",
-    "homepage": "https://github.com/mafiascum/private-topics",
+    "description": "Mafiascum Private Topics",
+    "homepage": "https://github.com/mafiascum/privatetopics",
     "time": "2017-09-17",
     "license": "GPL-2.0",
     "authors": [{

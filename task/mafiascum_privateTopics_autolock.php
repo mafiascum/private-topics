@@ -1,7 +1,7 @@
 <?php
-namespace mafiascum\privateTopics\task;
+namespace mafiascum\privatetopics\task;
 
-class mafiascum_privateTopics_autolock extends \phpbb\cron\task\base {
+class mafiascum_privatetopics_autolock extends \phpbb\cron\task\base {
     protected $config;
     
     /* @var \phpbb\db\driver\driver */
@@ -33,11 +33,11 @@ class mafiascum_privateTopics_autolock extends \phpbb\cron\task\base {
         
         $this->db->sql_query($sql);
 
-        $this->config->set('mafiascum_privateTopics_autolock_last_gc', time());
+        $this->config->set('mafiascum_privatetopics_autolock_last_gc', time());
     }
 
     public function should_run() {
-        return $this->config['mafiascum_privateTopics_autolock_last_gc'] < time() - $this->config['mafiascum_privateTopics_autolock_gc'];
+        return $this->config['mafiascum_privatetopics_autolock_last_gc'] < time() - $this->config['mafiascum_privatetopics_autolock_gc'];
     }
     
 }

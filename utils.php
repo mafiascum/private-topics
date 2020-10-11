@@ -7,7 +7,7 @@
  *
  */
 
-namespace mafiascum\privateTopics;
+namespace mafiascum\privatetopics;
 
 class Utils {
     public static function is_user_authorized_for_topic($db, $auth, $user_id, $forum_id, $topic_id) {

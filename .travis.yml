@@ -9,6 +9,6 @@ before_install:
   - docker pull mafiascum/forum-tester:latest
 
 script:
-    - docker run -it --link test_database -v $PWD:/var/www/html/phpbb/phpBB/ext/mafiascum/privateTopics/ -e PHPBB_TEST_DBMS=mysqli -e PHPBB_TEST_DBHOST=test_database -e PHPBB_TEST_DBPORT=3306 -e PHPBB_TEST_DBNAME=ms_phpbb3 -e PHPBB_TEST_DBUSER=root -e PHPBB_TEST_DBPASSWD=password mafiascum/forum-tester:latest phpBB/ext/mafiascum/privateTopics/phpunit.xml.dist
+    - docker run -it --link test_database -v $PWD:/var/www/html/phpbb/phpBB/ext/mafiascum/privatetopics/ -e PHPBB_TEST_DBMS=mysqli -e PHPBB_TEST_DBHOST=test_database -e PHPBB_TEST_DBPORT=3306 -e PHPBB_TEST_DBNAME=ms_phpbb3 -e PHPBB_TEST_DBUSER=root -e PHPBB_TEST_DBPASSWD=password mafiascum/forum-tester:latest phpBB/ext/mafiascum/privatetopics/phpunit.xml.dist
 
   
