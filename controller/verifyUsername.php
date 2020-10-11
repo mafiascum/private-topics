@@ -1,6 +1,6 @@
 <?php
 
-namespace mafiascum\privateTopics\controller;
+namespace mafiascum\privatetopics\controller;
 
 class verifyUsername
 {

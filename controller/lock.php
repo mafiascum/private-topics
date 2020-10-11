@@ -1,10 +1,10 @@
 <?php
 
-namespace mafiascum\privateTopics\controller;
+namespace mafiascum\privatetopics\controller;
 
 require_once(dirname(__FILE__) . "/../utils.php");
 
-use mafiascum\privateTopics\Utils;
+use mafiascum\privatetopics\Utils;
 
 class lock
 {

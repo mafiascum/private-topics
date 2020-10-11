@@ -1,6 +1,6 @@
 <?php
 
-namespace mafiascum\privateTopics\migrations;
+namespace mafiascum\privatetopics\migrations;
 
 class private_topics extends \phpbb\db\migration\migration
 {

@@ -1,6 +1,6 @@
 services:
-  mafiascum.privateTopics.listener:
-    class: mafiascum\privateTopics\event\main_listener
+  mafiascum.privatetopics.listener:
+    class: mafiascum\privatetopics\event\main_listener
     arguments:
         - '@controller.helper'
         - '@template'
@@ -15,14 +15,14 @@ services:
         - '%core.php_ext%'
     tags:
         - { name: event.listener }
-  mafiascum.privateTopics.verifyUsernameController:
-    class: mafiascum\privateTopics\controller\verifyUsername
+  mafiascum.privatetopics.verifyUsernameController:
+    class: mafiascum\privatetopics\controller\verifyUsername
     arguments:
         - '@request'
         - '@user_loader'
 
-  mafiascum.privateTopics.lockController:
-    class: mafiascum\privateTopics\controller\lock
+  mafiascum.privatetopics.lockController:
+    class: mafiascum\privatetopics\controller\lock
     arguments:
         - '@request'
         - '@dbal.conn'
@@ -34,12 +34,12 @@ services:
         - '%core.root_path%'
         - '%core.php_ext%'
 
-  mafiascum.privateTopics.mafiascum_privateTopics_autolock:
-    class: mafiascum\privateTopics\task\mafiascum_privateTopics_autolock
+  mafiascum.privatetopics.mafiascum_privatetopics_autolock:
+    class: mafiascum\privatetopics\task\mafiascum_privatetopics_autolock
     arguments:
         - '@config'
         - '@dbal.conn'
     calls:
-        - [set_name, [mafiascum_privateTopics_autolock.mafiascum_privateTopics_autolock]]
+        - [set_name, [mafiascum_privatetopics_autolock.mafiascum_privatetopics_autolock]]
     tags:
         - { name: cron.task }

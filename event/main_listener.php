@@ -7,11 +7,11 @@
  *
  */
 
-namespace mafiascum\privateTopics\event;
+namespace mafiascum\privatetopics\event;
 
 require_once(dirname(__FILE__) . "/../utils.php");
 
-use mafiascum\privateTopics\Utils;
+use mafiascum\privatetopics\Utils;
 
 /**
  * @ignore
@@ -113,7 +113,7 @@ class main_listener implements EventSubscriberInterface
     {
         $lang_set_ext = $event['lang_set_ext'];
         $lang_set_ext[] = array(
-            'ext_name' => 'mafiascum/privateTopics',
+            'ext_name' => 'mafiascum/privatetopics',
             'lang_set' => 'common',
         );
         $event['lang_set_ext'] = $lang_set_ext;

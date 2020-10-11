@@ -1,6 +1,6 @@
 <?php
 
-namespace mafiascum\privateTopics\migrations;
+namespace mafiascum\privatetopics\migrations;
 
 class private_topics_permission_type extends \phpbb\db\migration\migration
 {
@@ -12,7 +12,7 @@ class private_topics_permission_type extends \phpbb\db\migration\migration
     
     static public function depends_on()
     {
-        return array('\mafiascum\privateTopics\migrations\private_topics');
+        return array('\mafiascum\privatetopics\migrations\private_topics');
     }
 
     public function update_schema()
