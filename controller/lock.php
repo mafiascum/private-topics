@@ -135,11 +135,12 @@ class lock
             trigger_error('NO_TOPIC');
         }
 
-        $lock_allowed = Utils::is_topic_moderator(
+        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+
+        $lock_allowed = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
             $this->db,
             $this->table_prefix,
-            $this->auth,
-            $this->user,
+            $this->user->data['user_id'],
             $forum_id,
             $topic_id,
             $topic_poster,
