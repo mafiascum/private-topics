@@ -1,16 +1,16 @@
 {
-    "name": "mafiascum/privateTopics",
+    "name": "mafiascum/private-topics",
     "type": "phpbb-extension",
     "description": "Mafiascum Privte Topics",
-    "homepage": "https://github.com/mafiascum/privateTopics",
+    "homepage": "https://github.com/mafiascum/private-topics",
     "version": "0.1.0",
     "time": "2017-09-17",
     "license": "GPL-2.0",
     "authors": [{
-	"name": "Charlie Ciccia",
-	"email": "cciccia@gmail.com",
-	"homepage": "https://github.com/cciccia/",
-	"role": "Omerta"
+        "name": "Charlie Ciccia",
+        "email": "cciccia@gmail.com",
+        "homepage": "https://github.com/cciccia/",
+        "role": "Omerta"
     }],
     "require": {
 	"php": ">=5.3.3",
