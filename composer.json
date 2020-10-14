@@ -2,7 +2,7 @@
     "name": "mafiascum/privatetopics",
     "type": "phpbb-extension",
     "description": "Mafiascum Private Topics",
-    "version": "0.2.0",
+    "version": "0.4.0",
     "homepage": "https://github.com/mafiascum/privatetopics",
     "time": "2017-09-17",
     "license": "GPL-2.0",
