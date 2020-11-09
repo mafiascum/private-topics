@@ -918,6 +918,6 @@ class main_listener implements EventSubscriberInterface
 
 	public function search_backend_search_after($event)
 	{
-		$event['total_match_count'] = $this->sphinx_max_matches;
+		$event['total_match_count'] = min($event['total_match_count'], $this->sphinx_max_matches);
 	}
 }
