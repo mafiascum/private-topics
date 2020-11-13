@@ -47,7 +47,7 @@ class main_listener implements EventSubscriberInterface
     /* phpbb\language\language */
 	protected $language;
 	
-	protected $private_topic_forums = Array(90, 94, 123, 2);
+	protected $private_topic_forums = Array(90, 94, 123);
 
 	protected $sphinx_max_matches = 100000;
 
@@ -58,7 +58,6 @@ class main_listener implements EventSubscriberInterface
             'core.acp_manage_forums_initialise_data'         => 'initialize_topic_author_moderation',
             'core.acp_manage_forums_request_data'            => 'submit_topic_author_moderation',
             'core.display_forums_modify_row'                 => 'replace_accurate_last_posts',
-            'core.display_forums_modify_sql'                 => 'get_accurate_last_posts',
             'core.mcp_post_additional_options'               => 'handle_mcp_additional_options',
             'core.mcp_post_template_data'                    => 'inject_posting_template_vars_mcp',
             'core.modify_posting_auth'                       => 'modify_posting_auth',
@@ -428,39 +427,16 @@ class main_listener implements EventSubscriberInterface
         }
     }
 
-    public function get_accurate_last_posts($event) {
-        $user_id = $this->user->data['user_id'];
-        $sql_array = $event['sql_ary'];
-
-        $sql_array['SELECT'] .= ', t.topic_id, t.topic_last_post_id, t.topic_last_post_subject, t.topic_last_post_time,
-                                     t.topic_last_poster_id, t.topic_last_poster_name, t.topic_last_poster_colour';
-        $sql_array['LEFT_JOIN'][] = array(
-            'FROM' => array('(SELECT t.forum_id as t_forum_id, t.topic_id, topic_last_post_id, topic_last_post_subject, topic_last_post_time,
-                                     topic_last_poster_id, topic_last_poster_name, topic_last_poster_colour,
-                                     ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY topic_last_post_time desc ) as rank
-                              FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . ' WHERE ' . Utils::pt_where_clause() . ')' => 't'),
-            'ON' => 'f.forum_id = t.t_forum_id AND t.rank = 1'
-        );
-        $event['sql_ary'] = $sql_array;
-    }
-
     public function replace_accurate_last_posts($event) {
         $row = $event['row'];
-        if (!is_null($row['topic_id'])) {
-            $row['forum_last_post_id'] = $row['topic_last_post_id'];
-            $row['forum_last_post_subject'] = $row['topic_last_post_subject'];
-            $row['forum_last_post_time'] = $row['topic_last_post_time'];
-            $row['forum_last_poster_id'] = $row['topic_last_poster_id'];
-            $row['forum_last_poster_name'] = $row['topic_last_poster_name'];
-            $row['forum_last_poster_colour'] = $row['topic_last_poster_colour'];
-        } else {
+        if ($this->is_private_topic_forum($row['forum_id'])) {
             $row['forum_last_post_id'] = '--';
             $row['forum_last_post_subject'] = '--';
-            $row['forum_last_post_time'] = '--';
+            $row['forum_last_post_time'] = 0;
             $row['forum_last_poster_id'] = '--';
             $row['forum_last_poster_name'] = '--';
             $row['forum_last_poster_colour'] = '--';
-        }
+        } 
         $event['row'] = $row;
     }
 
