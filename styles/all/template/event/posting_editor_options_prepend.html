@@ -1,4 +1,4 @@
-{% if S_NEW_MESSAGE %}
+{% if S_NEW_MESSAGE and not S_PRIVMSGS %}
 
 {% if IS_PRIVATE_FORUM %}
 <label>{{ lang('CHANGE_PRIVACY') }}</label>
