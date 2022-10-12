@@ -349,6 +349,9 @@ class main_listener implements EventSubscriberInterface
     }
 
     public function inject_posting_template_vars_post($event) {
+        if($event['topic_id'] == 0 || $event['post_data']['is_private']) {
+            $this->template->assign_var('IS_PRIVATE_TOPIC', true);
+        }
         if ($this->will_configure_private_topics($event)) {
             $this->inject_posting_template_vars($event['forum_id'], $event['topic_id']);
         }
@@ -495,6 +498,7 @@ class main_listener implements EventSubscriberInterface
 
         if ($topic_data['is_private'] == '1') {
             $topic_data['topic_title'] = $this->language->lang('PRIVATE_TOPIC_LABEL') . $topic_data['topic_title'];
+            $this->template->assign_var('IS_PRIVATE_TOPIC', true);
         }
 
         $event['topic_data'] = $topic_data;
