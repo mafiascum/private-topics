@@ -121,7 +121,7 @@ class main_listener implements EventSubscriberInterface
     // quick mod tools
     // utterly lifted from old code base.
     private function get_quick_mod_html($topic_id, $poster_id, $topic_data, $forum_id) {
-        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $forum_id);
         $can_lock = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
             $this->db, 
             $this->table_prefix, 
@@ -149,10 +149,9 @@ class main_listener implements EventSubscriberInterface
         return ($topic_mod != '') ? '<select name="action" id="quick-mod-select">' . $topic_mod . '</select>' : '';
     }
 
-    private function will_configure_private_topics($event) {
-        $mode = $event['mode'];
-        $post_id = $event['data']['post_id'];
-        $topic_first_post_id = $event['data']['topic_first_post_id'];
+    private function will_configure_private_topics($post_data, $mode) {
+        $post_id = $post_data['post_id'];
+        $topic_first_post_id = $post_data['topic_first_post_id'];
 
         return $mode == 'post' || ($mode == 'edit' && $topic_first_post_id == $post_id);
     }
@@ -215,7 +214,7 @@ class main_listener implements EventSubscriberInterface
 
     public function update_private_users_and_mods($event)
     {
-        if ($this->will_configure_private_topics($event)) {
+        if ($this->will_configure_private_topics($event['data'], $event['mode'])) {
             $topic_id = $event['data']['topic_id'];
             $poster_id = $event['data']['poster_id'];
 
@@ -323,7 +322,7 @@ class main_listener implements EventSubscriberInterface
         $topic_autolock_allowed = false;
         
         if ($mode == 'post' || ($mode == 'edit' && $post_id == $post_data['topic_first_post_id'])) {
-            $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+            $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $forum_id);
 
             $topic_autolock_allowed = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
                 $this->db, 
@@ -337,6 +336,8 @@ class main_listener implements EventSubscriberInterface
 
         if ($submit || $preview || $refresh) {
             $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
+        } else {
+            $autolock_arr = array();
         }
 
         $this->template->assign_vars(array(
@@ -352,7 +353,7 @@ class main_listener implements EventSubscriberInterface
         if($event['topic_id'] == 0 || $event['post_data']['is_private']) {
             $this->template->assign_var('IS_PRIVATE_TOPIC', true);
         }
-        if ($this->will_configure_private_topics($event)) {
+        if ($this->will_configure_private_topics($event['post_data'], $event['mode'])) {
             $this->inject_posting_template_vars($event['forum_id'], $event['topic_id']);
         }
 
@@ -412,7 +413,7 @@ class main_listener implements EventSubscriberInterface
             //For locked topics, we need to trick the auth handler into thinking it is unlocked for the moment if the user is authorized to post in a locked topic.
             //Fully admit this is a hack for circumventing the auth->acl call,
             //But really what we need is a t_* permissions scope and we don't have it
-            if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED && Utils::is_moderator_by_permissions('lock', $this->auth, $this->user) || $is_topic_mod) {
+            if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED && Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $event['forum_id']) || $is_topic_mod) {
                 $post_data['topic_status'] = ITEM_UNLOCKED;
                 $post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] = 1;
                 $event['post_data'] = $post_data;
@@ -423,7 +424,7 @@ class main_listener implements EventSubscriberInterface
     public function clear_moderator_lock_flag($event) {
         // clear moderator circumvent flag if set and relock
         $post_data = $event['post_data'];
-        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']) {
+        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] && 0) {
             $post_data['topic_status'] = ITEM_LOCKED;
             unset($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']);
             $event['post_data'] = $post_data;
@@ -556,8 +557,8 @@ class main_listener implements EventSubscriberInterface
             $topic_poster,
             $topic_author_moderation
         );
-        $can_edit = Utils::is_moderator_by_permissions('edit', $this->auth, $this->user) || $is_topic_moderator;
-        $can_delete = Utils::is_moderator_by_permissions('delete', $this->auth, $this->user) || $is_topic_moderator;
+        $can_edit = Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $forum_id) || $is_topic_moderator;
+        $can_delete = Utils::is_moderator_by_permissions('delete', $this->auth, $this->user, $forum_id) || $is_topic_moderator;
 
         
         $event['force_edit_allowed'] = $event['force_edit_allowed'] || $can_edit;
@@ -570,9 +571,9 @@ class main_listener implements EventSubscriberInterface
         // this is kind of a judgment call - if you're a true true mod, you shouldn't really be needing to mess with the topic_mod stuff
         // There are certain combos of things here where if you have, say, m_edit perms and you're a topic_mod
         // Where you would not be able to lock here. I think those situations should be resolved by giving m_lock to the user (seeing as how they have m_edit)
-        $is_mod_by_perms = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user) || 
-            Utils::is_moderator_by_permissions('edit', $this->auth, $this->user) || 
-            Utils::is_moderator_by_permissions('delete', $this->auth, $this->user);
+        $is_mod_by_perms = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $event['forum_id']) || 
+            Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $event['forum_id']) || 
+            Utils::is_moderator_by_permissions('delete', $this->auth, $this->user, $event['forum_id']);
 
         $this->template->assign_var('CAN_USE_MCP', $is_mod_by_perms);
 
@@ -620,6 +621,7 @@ class main_listener implements EventSubscriberInterface
     {
         $timezone_offset = null;
         $autolock_time = 0;
+        $time_autolock = null;
         
         if(preg_match_all('/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))? ?(-?\d{1,2}\.\d{1,2})?/', $input_string, $matches, PREG_SET_ORDER)) {
             
@@ -675,7 +677,7 @@ class main_listener implements EventSubscriberInterface
         $mode = $event['mode'];
         $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
 
-        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user);
+        $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $forum_id);
 
         $topic_autolock_allowed = $has_lock_permissions || Utils::is_moderator_by_topic_moderation(
             $this->db, 
@@ -744,7 +746,7 @@ class main_listener implements EventSubscriberInterface
 	public function viewforum_get_topic_ids_data($event) {
 
 		$sql_ary = $event['sql_ary'];
-		$left_join = $sql_ary['LEFT_JOIN'];
+		$left_join = $sql_ary['LEFT_JOIN'] ?? array();
 		$where = $sql_ary['WHERE'];
 
 		$left_join[] = array(

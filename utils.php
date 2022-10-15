@@ -57,7 +57,7 @@ class Utils {
         return '(' . $table_alias . '.is_private = 0 OR tu.topic_id IS NOT NULL OR tm.topic_id IS NOT NULL)';
     }
 
-    public static function is_moderator_by_permissions($action, $auth, $user) {  
+    public static function is_moderator_by_permissions($action, $auth, $user, $forum_id) {  
         if ($action === 'lock') {
             // Can lock topics in this forum
             if ($auth->acl_get('m_lock', $forum_id)) {
