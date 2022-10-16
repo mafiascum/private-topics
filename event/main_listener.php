@@ -12,6 +12,7 @@ namespace mafiascum\privatetopics\event;
 require_once(dirname(__FILE__) . "/../utils.php");
 
 use mafiascum\privatetopics\Utils;
+use \Datetime;
 
 /**
  * @ignore
@@ -150,6 +151,10 @@ class main_listener implements EventSubscriberInterface
     }
 
     private function will_configure_private_topics($post_data, $mode) {
+        if(!array_key_exists('post_id', $post_data)) {
+            return false;
+        }
+        
         $post_id = $post_data['post_id'];
         $topic_first_post_id = $post_data['topic_first_post_id'];
 
@@ -179,6 +184,14 @@ class main_listener implements EventSubscriberInterface
 	{
 		return in_array($forum_id, $this->private_topic_forums);
 	}
+
+    private function generate_autolock_input_from_timestamp($autolock_time, $timezone) {
+        if($autolock_time == 0) {
+            return '';
+        }
+        $autolock_datetime = (new DateTime)->setTimestamp($autolock_time)->setTimezone($timezone);
+        return $autolock_datetime->format("Y-m-d H:i:s");
+    }
 
     private function update_private_entities($event, $new_users, $table_name, $addl_where = '')
     {
@@ -318,7 +331,6 @@ class main_listener implements EventSubscriberInterface
         $submit = $event['submit'];
         $preview = $event['preview'];
         $refresh = $event['refresh'];
-        
         $topic_autolock_allowed = false;
         
         if ($mode == 'post' || ($mode == 'edit' && $post_id == $post_data['topic_first_post_id'])) {
@@ -335,17 +347,16 @@ class main_listener implements EventSubscriberInterface
 		}
 
         if ($submit || $preview || $refresh) {
-            $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
+            $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''), $this->user->timezone);
         } else {
             $autolock_arr = array();
         }
 
         $this->template->assign_vars(array(
             'S_AUTOLOCK_ALLOWED' => $topic_autolock_allowed,
-            'S_AUTOLOCK_SET'     => (($autolock_arr == null ? $post_data['autolock_time'] : $autolock_arr['unix_timestamp']) != 0),
-            'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? $post_data['autolock_input'] : $autolock_arr['input'],
-            'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? $post_data['autolock_time'] : $autolock_arr['unix_timestamp']),
-            'USER_TIMEZONE_OFFSET'	=> array_key_exists('autolock_timezone_offset', $post_data) ? $post_data['autolock_timezone_offset'] : number_format($this->user->create_datetime()->getOffset() / 60 / 60, 2),
+            'S_AUTOLOCK_SET'     => (($autolock_arr == null ? ($post_data['autolock_time'] ?? false) : $autolock_arr['unix_timestamp']) != 0),
+            'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? ($this->generate_autolock_input_from_timestamp($post_data['autolock_time'] ?? 0, $this->user->timezone)) : $autolock_arr['input'],
+            'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? ($post_data['autolock_time'] ?? 0) : $autolock_arr['unix_timestamp'])
         ));
     }
 
@@ -424,7 +435,7 @@ class main_listener implements EventSubscriberInterface
     public function clear_moderator_lock_flag($event) {
         // clear moderator circumvent flag if set and relock
         $post_data = $event['post_data'];
-        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] && 0) {
+        if (($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] ?? false) && 0) {
             $post_data['topic_status'] = ITEM_LOCKED;
             unset($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']);
             $event['post_data'] = $post_data;
@@ -609,35 +620,24 @@ class main_listener implements EventSubscriberInterface
             $data = $event['data'];
 
             $sql_data = $event['sql_data'];
-
             $sql_data[TOPICS_TABLE]['sql']['autolock_time'] = $data['autolock_time'];
-            $sql_data[TOPICS_TABLE]['sql']['autolock_input'] = $data['autolock_input'];
-
             $event['sql_data'] = $sql_data;
         }
     }
 
-    private static function get_autolock_arr($input_string)
+    private static function get_autolock_arr($input_string, $timezone)
     {
-        $timezone_offset = null;
-        $autolock_time = 0;
-        $time_autolock = null;
+        $autolock_time = null;
         
-        if(preg_match_all('/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))? ?(-?\d{1,2}\.\d{1,2})?/', $input_string, $matches, PREG_SET_ORDER)) {
-            
+        if(preg_match_all('/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?/', $input_string, $matches, PREG_SET_ORDER)) {
             $match = $matches[0];
-            $time_autolock = gmmktime($match[4], $match[5], 0, $match[2], $match[3], $match[1]);
-            if(count($match) >= 7)
-            {
-                $timezone_offset = $match[7];
-                $time_autolock -= ((float)$match[7]) * 60 * 60;
-            }
+            $autolock_time = gmmktime($match[4], $match[5], 0, $match[2], $match[3], $match[1]);
+            $offset_seconds = $timezone->getOffset((new DateTime)->setTimestamp($autolock_time));
+            $autolock_time -= $offset_seconds;
         }
         
         return array(
-            "unix_timestamp"	=> $time_autolock,
-            "timezone_offset"	=> $timezone_offset,
-            "input" 			=> $input_string
+            "unix_timestamp"	=> $autolock_time
         );
     }
 
@@ -675,7 +675,7 @@ class main_listener implements EventSubscriberInterface
         $forum_id = $event['forum_id'];
         $post_data = $event['post_data'];
         $mode = $event['mode'];
-        $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''));
+        $autolock_arr = self::get_autolock_arr($this->request->variable('autolock_time', ''), $this->user->timezone);
 
         $has_lock_permissions = Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $forum_id);
 
@@ -691,11 +691,9 @@ class main_listener implements EventSubscriberInterface
 
         if ($mode == 'post' || ($mode == 'edit' && $post_data['topic_first_post_id'] == $post_id) && $topic_autolock_allowed) {
             $post_data['autolock_time'] = $autolock_arr['unix_timestamp'];
-            $post_data['autolock_input'] = $autolock_arr['unix_timestamp'] == 0 ? "" : $autolock_arr['input'];
         }
 
         $data['autolock_time'] = (int) $post_data['autolock_time'];
-        $data['autolock_input'] = (string) $post_data['autolock_input'];
 
         $event['post_data'] = $post_data;
         $event['data'] = $data;
@@ -703,15 +701,7 @@ class main_listener implements EventSubscriberInterface
 
     public function init_post_data($event) {
         $post_data = $event['post_data'];
-
-        $post_autolock_arr = self::get_autolock_arr($post_data['autolock_input']);
-
         $post_data['autolock_topic'] = '';
-
-        if ($post_autolock_arr !== null) {
-            $post_data['autolock_timezone_offset'] = $post_autolock_arr['timezone_offset'];
-        }
-
         $event['post_data'] = $post_data;
     }
 

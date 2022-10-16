@@ -48,7 +48,7 @@
 {% if S_AUTOLOCK_ALLOWED %}
 <dt><label for="autolock_time">{{ lang('AUTOLOCK_LABEL') }}:</label></dt>
 <dd>
-  <input size="32" data-time-zone="{{ USER_TIMEZONE_OFFSET }}" placeholder="{{ lang('AUTOLOCK_PLACEHOLDER') }}" type="text" name="autolock_time" id="autolock_time" value="{{ AUTOLOCK_TIME_VALUE }}" class="inputbox autowidth" />
+  <input autocomplete="off" size="32" placeholder="{{ lang('AUTOLOCK_PLACEHOLDER') }}" type="text" name="autolock_time" id="autolock_time" value="{{ AUTOLOCK_TIME_VALUE }}" class="inputbox autowidth" />
   {% if S_AUTOLOCK_SET %}
   <span>{{ lang('AUTOLOCK_REMAINING_LABEL') }} {{ AUTOLOCK_REMAINING }}.</span>
   {% endif %}
