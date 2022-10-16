@@ -161,14 +161,15 @@ class main_listener implements EventSubscriberInterface
         return $mode == 'post' || ($mode == 'edit' && $topic_first_post_id == $post_id);
     }
 
-    private function get_authorized_topics_in_list($user_id, $topic_list)
+    private function get_authorized_topics_in_list($user_id, $topic_list, $is_mod = false)
     {
         if (empty($topic_list)) {
             return array();
         } else {
+            $where = $is_mod ? '(1=1)' : Utils::pt_where_clause();
             $sql = 'SELECT t.topic_id, t.is_private FROM ' . $this->table_prefix . 'topics t ' . Utils::pt_join_clause($user_id) . '
                 WHERE ' . $this->db->sql_in_set('t.topic_id', $topic_list) . '
-                AND ' . Utils::pt_where_clause();
+                AND ' . $where;
 
             $topics = array();
             $result = $this->db->sql_query($sql);
@@ -456,9 +457,12 @@ class main_listener implements EventSubscriberInterface
     }
 
     public function filter_unauthorized_chosen_private_topics($event) {
+        $is_mod = Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $event['forum_id']);
+
         $authorized_topics = $this->get_authorized_topics_in_list(
             $this->user->data['user_id'],
-            $event['topic_list']
+            $event['topic_list'],
+            $is_mod
         );
         $ordered_authorized_topics = array();
 
@@ -746,7 +750,10 @@ class main_listener implements EventSubscriberInterface
 			'ON' => 'ptu.topic_id = t.topic_id AND ptu.user_id = ' . $this->user->data['user_id']
 		);
 
-		$where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
+
+        if (!Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $event['forum_data']['forum_id'])) {
+            $where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
+        }
 
 		$sql_ary['LEFT_JOIN'] = $left_join;
 		$sql_ary['WHERE'] = $where;

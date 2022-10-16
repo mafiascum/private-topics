@@ -15,6 +15,8 @@ class Utils {
         
         if (!$auth->acl_get('f_read', $forum_id)) {
             return false;
+        } else if ($auth->acl_get('m_edit', $forum_id)) { 
+            return true;
         } else {
             $sql = 'SELECT count(*) as cnt
                 FROM ' . $table_prefix . 'topics t ' . self::pt_join_clause($user_id) . '
