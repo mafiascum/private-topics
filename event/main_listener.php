@@ -356,7 +356,7 @@ class main_listener implements EventSubscriberInterface
         $this->template->assign_vars(array(
             'S_AUTOLOCK_ALLOWED' => $topic_autolock_allowed,
             'S_AUTOLOCK_SET'     => (($autolock_arr == null ? ($post_data['autolock_time'] ?? false) : $autolock_arr['unix_timestamp']) != 0),
-            'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? ($this->generate_autolock_input_from_timestamp($post_data['autolock_time'] ?? 0, $this->user->timezone)) : $autolock_arr['input'],
+            'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? ($this->generate_autolock_input_from_timestamp($post_data['autolock_time'] ?? 0, $this->user->timezone)) : ($autolock_arr['input'] ?? ''),
             'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? ($post_data['autolock_time'] ?? 0) : $autolock_arr['unix_timestamp'])
         ));
     }
