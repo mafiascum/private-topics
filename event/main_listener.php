@@ -547,7 +547,7 @@ class main_listener implements EventSubscriberInterface
         $forum_id = $event['topic_data']['forum_id'] ?: $event['post_data']['forum_id'];
         $topic_id = $event['topic_data']['topic_id'] ?: $event['post_data']['topic_id'];
         $topic_poster = $event['topic_data']['topic_poster'] ?: $event['post_data']['topic_poster'];
-        $topic_author_moderation = $event['topic_data']['topic_author_moderation'] ?: $event['post_data']['topic_author_moderation'];
+        $topic_author_moderation = $event['topic_data']['topic_author_moderation'] ?: $event['topic_data']['topic_author_moderation'];
         $is_topic_moderator = Utils::is_moderator_by_topic_moderation(
             $this->db, 
             $this->table_prefix,
