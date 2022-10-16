@@ -362,7 +362,7 @@ class main_listener implements EventSubscriberInterface
     }
 
     public function inject_posting_template_vars_post($event) {
-        if($event['topic_id'] == 0 || $event['post_data']['is_private']) {
+        if($event['topic_id'] != 0 && ($event['post_data']['is_private'] ?? false)) {
             $this->template->assign_var('IS_PRIVATE_TOPIC', true);
         }
         if ($this->will_configure_private_topics($event['post_data'], $event['mode'])) {
