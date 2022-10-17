@@ -609,7 +609,7 @@ class main_listener implements EventSubscriberInterface
                     'redirect'	=> urlencode(str_replace('&amp;', '&', $viewtopic_url)),
                 ),
                 true,
-                $user->session_id
+                $this->user->session_id
             ));
         }
         
@@ -636,7 +636,7 @@ class main_listener implements EventSubscriberInterface
         if(preg_match_all('/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?/', $input_string, $matches, PREG_SET_ORDER)) {
             $match = $matches[0];
             $autolock_time = gmmktime($match[4], $match[5], 0, $match[2], $match[3], $match[1]);
-            $offset_seconds = $timezone->getOffset((new DateTime)->setTimestamp($autolock_time));
+            $offset_seconds = $timezone == null ? 0 : ($timezone->getOffset((new DateTime)->setTimestamp($autolock_time)));
             $autolock_time -= $offset_seconds;
         }
         
