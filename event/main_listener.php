@@ -151,6 +151,10 @@ class main_listener implements EventSubscriberInterface
     }
 
     private function will_configure_private_topics($post_data, $mode) {
+        if ($mode == 'post') {
+            return true;
+        }
+
         if(!array_key_exists('post_id', $post_data)) {
             return false;
         }
@@ -158,7 +162,7 @@ class main_listener implements EventSubscriberInterface
         $post_id = $post_data['post_id'];
         $topic_first_post_id = $post_data['topic_first_post_id'];
 
-        return $mode == 'post' || ($mode == 'edit' && $topic_first_post_id == $post_id);
+        return $mode == 'edit' && $topic_first_post_id == $post_id;
     }
 
     private function get_authorized_topics_in_list($user_id, $topic_list, $is_mod = false)
@@ -308,18 +312,30 @@ class main_listener implements EventSubscriberInterface
             ));
         }
         $this->db->sql_freeresult($result);
-        
-        $sql = 'SELECT is_private
-                    FROM ' . $this->table_prefix . 'topics
-                    WHERE topic_id = ' . $topic_id;
-        $result = $this->db->sql_query($sql);
-		$row = $this->db->sql_fetchrow($result);
+
+        $is_private_forum = $this->is_private_topic_forum($forum_id);
+
+        if ($is_private_forum) {
+            if ($topic_id) {
+                // we are looking up an existing topic in a PT forum that maybe or may not be private
+                $sql = 'SELECT is_private
+                            FROM ' . $this->table_prefix . 'topics
+                            WHERE topic_id = ' . $topic_id;
+                $result = $this->db->sql_query($sql);
+                $row = $this->db->sql_fetchrow($result);
+                $is_private = $row['is_private'] == '1';
+                $this->db->sql_freeresult($result);
+            } else {
+                // we are creating a PT
+                $is_private = true;
+            }
+        } else {
+            // we are creating or referencing something other than a PT
+            $is_private = false;
+        }
 		
-		$is_private_forum = $this->is_private_topic_forum($forum_id);
-		
-		$this->template->assign_var('IS_PRIVATE', $row['is_private'] == '1' || ($row['is_private'] == '' && $is_private_forum));
+		$this->template->assign_var('IS_PRIVATE', $is_private);
 		$this->template->assign_var('IS_PRIVATE_FORUM', $is_private_forum);
-        $this->db->sql_freeresult($result);
     }
 
     private function inject_autolock_template_vars($event) {
