@@ -85,7 +85,8 @@ class main_listener implements EventSubscriberInterface
 			'core.search_modify_param_after'                 => 'search_modify_param_after',
 			'core.search_modify_rowset'                      => 'search_modify_rowset',
 			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
-            'core.search_backend_search_after'               => 'search_backend_search_after'
+            'core.search_backend_search_after'               => 'search_backend_search_after',
+            'core.display_forums_modify_template_vars'       => 'display_forums_modify_template_vars'
         );
     }
 
@@ -104,6 +105,21 @@ class main_listener implements EventSubscriberInterface
         $this->php_ext = $php_ext;
 	}
 
+    public function display_forums_modify_template_vars($event) {
+        $forum_row = $event['forum_row'];
+
+        if($forum_row['LAST_POSTER'] == '--') {
+            //$forum_row['LAST_POSTER'] = '--';
+            $forum_row['LAST_POST_SUBJECT'] = '';
+            $forum_row['LAST_POST_TIME'] = '';
+            $forum_row['LAST_POST_TIME_RFC3339'] = '--';
+            $forum_row['U_LAST_POST'] = '/';
+            //$forum_row['LAST_POSTER'] = '--';
+        }
+
+        $event['forum_row'] = $forum_row;
+    }
+	
 	public function search_modify_submit_parameters($event) {
 		//Set this constant before the sphinx code does.
 		define('SPHINX_MAX_MATCHES', $this->sphinx_max_matches);
@@ -462,12 +478,12 @@ class main_listener implements EventSubscriberInterface
     public function replace_accurate_last_posts($event) {
         $row = $event['row'];
         if ($this->is_private_topic_forum($row['forum_id'])) {
-            $row['forum_last_post_id'] = '';
-            $row['forum_last_post_subject'] = '';
-            $row['forum_last_post_time'] = '';
-            $row['forum_last_poster_id'] = '';
-            $row['forum_last_poster_name'] = '';
-            $row['forum_last_poster_colour'] = '';
+            $row['forum_last_post_id'] = '--';
+            $row['forum_last_post_subject'] = '--';
+            $row['forum_last_post_time'] = 0;
+            $row['forum_last_poster_id'] = '--';
+            $row['forum_last_poster_name'] = '--';
+            $row['forum_last_poster_colour'] = '--';
         } 
         $event['row'] = $row;
     }
