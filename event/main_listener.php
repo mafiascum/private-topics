@@ -85,7 +85,7 @@ class main_listener implements EventSubscriberInterface
 			'core.search_modify_param_after'                 => 'search_modify_param_after',
 			'core.search_modify_rowset'                      => 'search_modify_rowset',
 			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
-            'core.search_backend_search_after'               => 'search_backend_search_after',
+            'core.search_backend_search_after'               => 'search_backend_search_after'
         );
     }
 
@@ -103,7 +103,7 @@ class main_listener implements EventSubscriberInterface
         $this->phpbb_root_path = $root_path;
         $this->php_ext = $php_ext;
 	}
-	
+
 	public function search_modify_submit_parameters($event) {
 		//Set this constant before the sphinx code does.
 		define('SPHINX_MAX_MATCHES', $this->sphinx_max_matches);
@@ -462,12 +462,12 @@ class main_listener implements EventSubscriberInterface
     public function replace_accurate_last_posts($event) {
         $row = $event['row'];
         if ($this->is_private_topic_forum($row['forum_id'])) {
-            $row['forum_last_post_id'] = '--';
-            $row['forum_last_post_subject'] = '--';
-            $row['forum_last_post_time'] = 0;
-            $row['forum_last_poster_id'] = '--';
-            $row['forum_last_poster_name'] = '--';
-            $row['forum_last_poster_colour'] = '--';
+            $row['forum_last_post_id'] = '';
+            $row['forum_last_post_subject'] = '';
+            $row['forum_last_post_time'] = '';
+            $row['forum_last_poster_id'] = '';
+            $row['forum_last_poster_name'] = '';
+            $row['forum_last_poster_colour'] = '';
         } 
         $event['row'] = $row;
     }
