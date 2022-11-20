@@ -389,7 +389,7 @@ class main_listener implements EventSubscriberInterface
             'S_AUTOLOCK_ALLOWED' => $topic_autolock_allowed,
             'S_AUTOLOCK_SET'     => (($autolock_arr == null ? ($post_data['autolock_time'] ?? false) : $autolock_arr['unix_timestamp']) != 0),
             'AUTOLOCK_TIME_VALUE'	=> $autolock_arr == null ? ($this->generate_autolock_input_from_timestamp($post_data['autolock_time'] ?? 0, $this->user->timezone)) : ($autolock_arr['input'] ?? ''),
-            'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? ($post_data['autolock_time'] ?? 0) : $autolock_arr['unix_timestamp'])
+            'AUTOLOCK_REMAINING'	=> self::get_autolock_remaining_text($autolock_arr == null ? ($post_data['autolock_time'] ?? 0) : $autolock_arr['unix_timestamp']),
         ));
     }
 
@@ -402,6 +402,15 @@ class main_listener implements EventSubscriberInterface
         }
 
         $this->inject_autolock_template_vars($event);
+
+        $page_data = $event['page_data'];
+        $post_data = $event['post_data'];
+
+        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1) {
+            $page_data['S_LOCK_TOPIC_CHECKED'] = ' checked="checked"';
+        }
+
+        $event['page_data'] = $page_data;
     }
 
     public function inject_posting_template_vars_mcp($event) {
