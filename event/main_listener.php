@@ -471,7 +471,7 @@ class main_listener implements EventSubscriberInterface
             //For locked topics, we need to trick the auth handler into thinking it is unlocked for the moment if the user is authorized to post in a locked topic.
             //Fully admit this is a hack for circumventing the auth->acl call,
             //But really what we need is a t_* permissions scope and we don't have it
-            if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED && Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $event['forum_id']) || $is_topic_mod) {
+            if (isset($post_data['topic_status']) && $post_data['topic_status'] == ITEM_LOCKED && (Utils::is_moderator_by_permissions('lock', $this->auth, $this->user, $event['forum_id']) || $is_topic_mod)) {
                 $post_data['topic_status'] = ITEM_UNLOCKED;
                 $post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] = 1;
                 $event['post_data'] = $post_data;
