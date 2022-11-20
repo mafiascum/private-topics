@@ -406,7 +406,7 @@ class main_listener implements EventSubscriberInterface
         $page_data = $event['page_data'];
         $post_data = $event['post_data'];
 
-        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1) {
+        if (isset($post_data['temporarily_unlocked_on_behalf_of_topic_moderator']) && $post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1) {
             $page_data['S_LOCK_TOPIC_CHECKED'] = ' checked="checked"';
         }
 
