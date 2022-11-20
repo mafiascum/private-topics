@@ -67,7 +67,7 @@ class lock
 
             foreach ($data as $id => $row)
             {
-                $this->phpbb_log->add('mod', $user->data['user_id'], $user->ip, 'LOG_' . strtoupper($action), false, array(
+                $this->phpbb_log->add('mod', $this->user->data['user_id'], $this->user->ip, 'LOG_' . strtoupper($action), false, array(
                     'forum_id' => $row['forum_id'],
                     'topic_id' => $row['topic_id'],
                     'post_id'  => isset($row['post_id']) ? $row['post_id'] : 0,
