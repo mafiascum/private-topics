@@ -45,6 +45,9 @@ class main_listener implements EventSubscriberInterface
     /* @var \phpbb\auth\auth */
     protected $auth;
 
+    /* @var \phpbb\log\log */
+    protected $phpbb_log;
+
     /* phpbb\language\language */
 	protected $language;
 	
@@ -86,11 +89,12 @@ class main_listener implements EventSubscriberInterface
 			'core.search_modify_rowset'                      => 'search_modify_rowset',
 			'core.get_unread_topics_modify_sql'              => 'get_unread_topics_modify_sql',
             'core.search_backend_search_after'               => 'search_backend_search_after',
-            'core.display_forums_modify_template_vars'       => 'display_forums_modify_template_vars'
+            'core.display_forums_modify_template_vars'       => 'display_forums_modify_template_vars',
+            'core.posting_modify_submission_errors'          => 'posting_modify_submission_errors',
         );
     }
 
-    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, \phpbb\auth\auth $auth, $table_prefix, $root_path, $php_ext)
+    public function __construct(\phpbb\controller\helper $helper, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\db\driver\driver_interface $db,  \phpbb\user $user, \phpbb\user_loader $user_loader, \phpbb\language\language $language, \phpbb\auth\auth $auth, \phpbb\log\log $log, $table_prefix, $root_path, $php_ext)
     {
         $this->helper = $helper;
         $this->template = $template;
@@ -100,6 +104,7 @@ class main_listener implements EventSubscriberInterface
         $this->user_loader = $user_loader;
         $this->language = $language;
         $this->auth = $auth;
+        $this->phpbb_log = $log;
         $this->table_prefix = $table_prefix;
         $this->phpbb_root_path = $root_path;
         $this->php_ext = $php_ext;
@@ -777,6 +782,33 @@ class main_listener implements EventSubscriberInterface
             $this->template->assign_var('TOPIC_AUTHOR_MODERATION', $forum_data['topic_author_moderation']);
         }
 	}
+
+    public function posting_modify_submission_errors($event) {
+        $topic_lock	= (isset($_POST['lock_topic'])) ? true : false;
+        $post_data = $event['post_data'];
+        $forum_id = $event['forum_id'];
+        $topic_id = $event['topic_id'];
+        
+        $change_topic_status = $post_data['topic_status'];
+		$perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) || ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] && $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
+        
+        // need to look at a separate flag for unlocking
+        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1 && !$topic_lock && $perm_lock_unlock) {
+            $sql = 'UPDATE ' . TOPICS_TABLE . "
+                SET topic_status = 0
+                WHERE topic_id = $topic_id
+                    AND topic_moved_id = 0";
+            $this->db->sql_query($sql);
+
+            $user_lock = ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && $this->user->data['user_id'] == $post_data['topic_poster']) ? 'USER_' : '';
+
+            $this->phpbb_log->add('mod', $this->user->data['user_id'], $this->user->ip, 'LOG_' . $user_lock . 'UNLOCK', false, array(
+                'forum_id' => $forum_id,
+                'topic_id' => $topic_id,
+                $post_data['topic_title']
+            ));
+		}
+    }
 
 	public function viewforum_get_topic_ids_data($event) {
 

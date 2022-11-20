@@ -10,6 +10,7 @@ services:
         - '@user_loader'
         - '@language'
         - '@auth'
+        - '@log'
         - '%core.table_prefix%'
         - '%core.root_path%'
         - '%core.php_ext%'
