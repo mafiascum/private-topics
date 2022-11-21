@@ -91,6 +91,7 @@ class main_listener implements EventSubscriberInterface
             'core.search_backend_search_after'               => 'search_backend_search_after',
             'core.display_forums_modify_template_vars'       => 'display_forums_modify_template_vars',
             'core.posting_modify_submission_errors'          => 'posting_modify_submission_errors',
+            'core.viewtopic_modify_post_row'                 => 'viewtopic_modify_post_row',
         );
     }
 
@@ -452,7 +453,7 @@ class main_listener implements EventSubscriberInterface
         $mode = $event['mode'];
         $post_data = $event['post_data'];
         
-        if ($mode === 'edit' || $mode === 'delete' || $mode === 'soft_delete' || $mode === 'reply') {
+        if ($mode === 'edit' || $mode === 'delete' || $mode === 'soft_delete' || $mode === 'reply' || $mode === 'quote') {
             $is_topic_mod = Utils::is_moderator_by_topic_moderation(
                 $this->db,
                 $this->table_prefix,
@@ -625,6 +626,33 @@ class main_listener implements EventSubscriberInterface
         $event['force_edit_allowed'] = $event['force_edit_allowed'] || $can_edit;
         $event['force_delete_allowed'] = $event['force_delete_allowed'] || $can_delete;
         $event['force_softdelete_allowed'] = $event['force_softdelete_allowed'] || $can_delete;
+    }
+
+    public function viewtopic_modify_post_row($event) {
+        $user_id = $this->user->data['user_id'];
+        $forum_id = $event['topic_data']['forum_id'];
+        $topic_id = $event['topic_data']['topic_id'];
+        $topic_poster = $event['topic_data']['topic_poster'];
+        $topic_author_moderation = $event['topic_data']['topic_author_moderation'];
+
+        $row = $event['row'];
+        $post_row = $event['post_row'];
+
+        $is_topic_moderator = Utils::is_moderator_by_topic_moderation(
+            $this->db, 
+            $this->table_prefix,
+            $this->user->data['user_id'],
+            $forum_id,
+            $topic_id,
+            $topic_poster,
+            $topic_author_moderation
+        );
+
+        if (Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $forum_id) || $is_topic_moderator) {
+            $post_row['U_QUOTE'] = append_sid("{$this->phpbb_root_path}posting.$this->php_ext", "mode=quote&amp;p={$row['post_id']}");
+        }
+
+        $event['post_row'] = $post_row;
     }
 
     public function add_viewtopic_template_data($event) {
