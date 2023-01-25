@@ -821,7 +821,7 @@ class main_listener implements EventSubscriberInterface
 		$perm_lock_unlock = ($this->auth->acl_get('m_lock', $forum_id) || ($this->auth->acl_get('f_user_lock', $forum_id) && $this->user->data['is_registered'] && !empty($post_data['topic_poster']) && $this->user->data['user_id'] == $post_data['topic_poster'] && $post_data['topic_status'] == ITEM_UNLOCKED)) ? true : false;
         
         // need to look at a separate flag for unlocking
-        if ($post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1 && !$topic_lock && $perm_lock_unlock) {
+        if (array_key_exists('temporarily_unlocked_on_behalf_of_topic_moderator', $post_data) && $post_data['temporarily_unlocked_on_behalf_of_topic_moderator'] == 1 && !$topic_lock && $perm_lock_unlock) {
             $sql = 'UPDATE ' . TOPICS_TABLE . "
                 SET topic_status = 0
                 WHERE topic_id = $topic_id
@@ -850,10 +850,15 @@ class main_listener implements EventSubscriberInterface
 			),
 			'ON' => 'ptu.topic_id = t.topic_id AND ptu.user_id = ' . $this->user->data['user_id']
 		);
-
+        $left_join[] = array(
+            'FROM' => array (
+                'phpbb_topic_mod' => 'tm'
+            ),
+            'ON' => 'tm.topic_id = t.topic_id AND tm.user_id = ' . $this->user->data['user_id']
+        );
 
         if (!Utils::is_moderator_by_permissions('edit', $this->auth, $this->user, $event['forum_data']['forum_id'])) {
-            $where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
+            $where .= ' AND (t.is_private = 0 OR ptu.user_id IS NOT NULL OR tm.user_id IS NOT NULL OR t.topic_poster = ' . $this->user->data['user_id'] . ')';
         }
 
 		$sql_ary['LEFT_JOIN'] = $left_join;
@@ -881,18 +886,35 @@ class main_listener implements EventSubscriberInterface
 	}
 
 	private function get_private_topic_users($topic_id) {
+        $authorized_users = Array();
+
+        // Add users with explicit PT access
 		$sql = 'SELECT user_id
 				FROM ' . $this->table_prefix . 'private_topic_users
 				WHERE topic_id=' . $topic_id;
 
-		$authorized_users = Array();
+		
 		$result = $this->db->sql_query($sql);
 		while($row = $this->db->sql_fetchrow($result))
 		{
 			$authorized_users[] = $row['user_id'];
 		}
 		$this->db->sql_freeresult($result);
-		return $authorized_users;
+
+        // Add users with topic moderator access
+		$sql = 'SELECT user_id
+				FROM ' . $this->table_prefix . 'topic_mod
+				WHERE topic_id=' . $topic_id;
+
+		
+		$result = $this->db->sql_query($sql);
+		while($row = $this->db->sql_fetchrow($result))
+		{
+			$authorized_users[] = $row['user_id'];
+		}
+		$this->db->sql_freeresult($result);
+
+		return array_unique($authorized_users, SORT_NUMERIC);
 	}
 
 	public function notification_manager_add_notifications($event) {
