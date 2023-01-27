@@ -92,6 +92,7 @@ class main_listener implements EventSubscriberInterface
             'core.display_forums_modify_template_vars'       => 'display_forums_modify_template_vars',
             'core.posting_modify_submission_errors'          => 'posting_modify_submission_errors',
             'core.viewtopic_modify_post_row'                 => 'viewtopic_modify_post_row',
+            'core.ucp_pm_compose_quotepost_query_after'      => 'ucp_pm_compose_quotepost_query_after'
         );
     }
 
@@ -110,6 +111,28 @@ class main_listener implements EventSubscriberInterface
         $this->phpbb_root_path = $root_path;
         $this->php_ext = $php_ext;
 	}
+
+    function ucp_pm_compose_quotepost_query_after($event) {
+        $post = $event['post'];
+
+        $sql = 'SELECT topic_id FROM ' . $this->table_prefix . 'posts WHERE post_id=' . $post['msg_id'];
+        $result = $this->db->sql_query($sql);
+        $row = $this->db->sql_fetchrow($result);
+        $topic_id = $row['topic_id'];
+        $this->db->sql_freeresult($result);
+
+        $is_pt_authed = Utils::is_user_authorized_for_topic(
+            $this->db,
+            $this->auth,
+            $this->user->data['user_id'],
+            $post['forum_id'],
+            $topic_id
+        );
+
+        if(!$is_pt_authed) {
+            trigger_error('SORRY_AUTH_READ');
+        }
+    }
 
     public function display_forums_modify_template_vars($event) {
         $forum_row = $event['forum_row'];
